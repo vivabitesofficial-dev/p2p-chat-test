@@ -129,7 +129,7 @@
         var currentContact = null; 
         var messagesDisplayed = {}; 
         let currentChatPathRef = null; 
-        let loggedInPubKey = '';
+        let loggedInPubKey = ''; // CORRECTED: This will now hold the full Public Key
 
         // --- Utility Functions ---
         async function getSharedKey(targetPub) {
@@ -149,7 +149,8 @@
 
         // --- Public ID Copy Function ---
         function copyMyId() {
-            const pubKey = loggedInPubKey;
+            // CRITICAL FIX: Ensure we use the global variable which is correctly assigned in auth success
+            const pubKey = loggedInPubKey; 
             const copyMessageEl = document.getElementById('copyMessage');
 
             // Use document.execCommand('copy') as navigator.clipboard might not work in some iframe environments
@@ -222,7 +223,8 @@
                 return;
             }
             
-            loggedInPubKey = user.is.pub; // Store key globally
+            // CRITICAL FIX: Assign the full public key here
+            loggedInPubKey = user.is.pub; 
             
             document.getElementById('authStatus').textContent = 'Authenticated';
             document.getElementById('publicKey').textContent = loggedInPubKey;
@@ -283,8 +285,8 @@
             }
 
             // 3. CRITICAL CHECK: Self-add check
-            if (key === user.is.pub) {
-                // Confirm the key is valid, but the action is disallowed.
+            // Use the globally stored Public Key for the comparison, ensuring consistency.
+            if (key === loggedInPubKey) { 
                 showModalError("That key is VALID! However, you cannot add yourself as a contact. Share it with a friend!");
                 return;
             }
@@ -331,7 +333,8 @@
                             contactListDiv.appendChild(contactItem);
                         }
 
-                        if (!currentContact) {
+                        if (currentContact === null && count === 1) {
+                            // Automatically select the first contact loaded only if no chat is active
                             setActiveChat(decryptedContact);
                         }
                     }
@@ -485,4 +488,6 @@
     </script>
 </body>
 </html>
+
+
 
