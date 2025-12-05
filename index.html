@@ -129,7 +129,7 @@
         var currentContact = null; 
         var messagesDisplayed = {}; 
         let currentChatPathRef = null; 
-        let loggedInPubKey = ''; // CORRECTED: This will now hold the full Public Key
+        let loggedInPubKey = ''; 
 
         // --- Utility Functions ---
         async function getSharedKey(targetPub) {
@@ -149,11 +149,9 @@
 
         // --- Public ID Copy Function ---
         function copyMyId() {
-            // CRITICAL FIX: Ensure we use the global variable which is correctly assigned in auth success
             const pubKey = loggedInPubKey; 
             const copyMessageEl = document.getElementById('copyMessage');
 
-            // Use document.execCommand('copy') as navigator.clipboard might not work in some iframe environments
             try {
                 const tempInput = document.createElement("textarea");
                 tempInput.value = pubKey;
@@ -179,7 +177,7 @@
         // --- Navigation ---
         function goBackToContacts() {
             if (currentChatPathRef) {
-                currentChatPathRef.off(); // Stop listening to the chat
+                currentChatPathRef.off(); 
             }
             currentContact = null;
             document.getElementById('contactPanel').classList.remove('hidden');
@@ -223,7 +221,6 @@
                 return;
             }
             
-            // CRITICAL FIX: Assign the full public key here
             loggedInPubKey = user.is.pub; 
             
             document.getElementById('authStatus').textContent = 'Authenticated';
@@ -234,12 +231,10 @@
             
             loadContacts();
             
-            // On successful login, if on mobile, ensure the contact panel is visible first
             if (isMobileView()) {
                  document.getElementById('contactPanel').classList.remove('hidden');
                  document.getElementById('chatPanel').classList.add('hidden');
             } else {
-                 // On desktop, both panels are visible
                  document.getElementById('contactPanel').classList.remove('hidden');
                  document.getElementById('chatPanel').classList.remove('hidden');
             }
@@ -247,7 +242,6 @@
 
         // --- Contact Management ---
         function showAddContactModal() {
-            // Clear any previous error messages
             document.getElementById('contactModalMessage').classList.add('hidden');
             document.getElementById('addContactModal').classList.remove('hidden');
         }
@@ -270,7 +264,16 @@
 
         async function addContact() {
             const name = document.getElementById('contactName').value.trim();
-            const key = document.getElementById('contactKey').value.trim();
+            // CRITICAL: Ensure key is trimmed of all possible whitespace/line breaks
+            const key = document.getElementById('contactKey').value.trim(); 
+
+            // --- DEBUGGING LOG ---
+            console.log('--- Public Key Validation Debug ---');
+            console.log('Key Received:', key);
+            console.log('Key Length:', key.length);
+            console.log('Contains ~:', key.includes('~'));
+            console.log('--- End Debug ---');
+            // ---------------------
 
             // 1. Check for missing Name
             if (!name) {
@@ -278,14 +281,13 @@
                 return;
             }
 
-            // 2. Check for invalid Key format (Relaxed check, only require '~')
+            // 2. Check for invalid Key format (Must contain '~')
             if (!key || !key.includes('~')) {
                 showModalError("Please paste a valid Public Key. It must be a long string containing a '~'.");
                 return;
             }
 
             // 3. CRITICAL CHECK: Self-add check
-            // Use the globally stored Public Key for the comparison, ensuring consistency.
             if (key === loggedInPubKey) { 
                 showModalError("That key is VALID! However, you cannot add yourself as a contact. Share it with a friend!");
                 return;
@@ -295,8 +297,7 @@
                 const encryptedContact = await SEA.encrypt({ name: name, key: key }, user.pair());
                 user.get('contacts').get(key).put(encryptedContact);
                 
-                showModalError(`Successfully added ${name}!`, false); // false for green confirmation
-                // We keep the modal open briefly to show the confirmation before closing
+                showModalError(`Successfully added ${name}!`, false); 
                 setTimeout(hideAddContactModal, 2000);
             } catch (e) {
                 console.error("Error saving encrypted contact:", e);
@@ -334,7 +335,6 @@
                         }
 
                         if (currentContact === null && count === 1) {
-                            // Automatically select the first contact loaded only if no chat is active
                             setActiveChat(decryptedContact);
                         }
                     }
@@ -355,19 +355,16 @@
             currentContact = contact;
             messagesDisplayed = {}; 
             
-            // 1. Handle Responsive View Toggling
             if (isMobileView()) {
                 document.getElementById('contactPanel').classList.add('hidden');
                 document.getElementById('chatPanel').classList.remove('hidden');
             }
             
-            // 2. Update UI and Enable Input
             document.getElementById('chatHeaderTitle').textContent = `Chatting with: ${contact.name}`;
             document.getElementById('msgInput').disabled = false;
             document.getElementById('sendBtn').disabled = false;
             document.getElementById('messages').innerHTML = '<div class="text-center pt-10 text-indigo-400">Establishing secure channel...</div>';
 
-            // Highlight the active contact
             document.querySelectorAll('#contactList > div').forEach(el => {
                 el.classList.remove('bg-indigo-600');
                 el.classList.add('bg-gray-700');
@@ -378,12 +375,10 @@
                  activeContactEl.classList.add('bg-indigo-600');
             }
             
-            // 3. Programmatic focus with delay (crucial for mobile keyboard fix)
             setTimeout(() => {
                 document.getElementById('msgInput').focus();
             }, 100);
 
-            // 4. Load Messages
             const sharedKey = await getSharedKey(contact.key);
             
             if (!sharedKey) {
@@ -446,7 +441,6 @@
 
                 gun.get('chat').get(sharedKey).set(messageData);
                 
-                // Re-focus the input after sending the message (improves mobile continuity)
                 if (isMobileView()) {
                    setTimeout(() => {
                         document.getElementById('msgInput').focus();
@@ -488,6 +482,8 @@
     </script>
 </body>
 </html>
+
+
 
 
 
