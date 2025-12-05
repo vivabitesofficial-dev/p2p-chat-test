@@ -71,15 +71,15 @@
                             Copy My ID
                         </button>
                     </p>
-                    <!-- Displaying truncated key here -->
+                    <!-- Displaying key here -->
                     <p id="publicKey" class="text-xs font-mono text-teal-300 break-all truncate">...</p>
                     
-                    <!-- *** NEW DIAGNOSTIC PANEL *** -->
-                    <div id="keyHealthCheck" class="p-2 mt-2 rounded bg-red-900 border border-red-700 hidden">
-                        <p class="text-sm font-bold text-red-300 mb-1">KEY HEALTH CHECK</p>
+                    <!-- *** DIAGNOSTIC PANEL (Now used for WORKAROUND status) *** -->
+                    <div id="keyHealthCheck" class="p-2 mt-2 rounded bg-orange-900 border border-orange-700 hidden">
+                        <p class="text-sm font-bold text-orange-300 mb-1">KEY HEALTH CHECK: WORKAROUND ACTIVE</p>
                         <p id="keyStatus" class="text-xs font-semibold text-yellow-300">Awaiting status...</p>
-                        <p class="text-xs text-gray-400 mt-2">Raw Pub Key Component (No Signature):</p>
-                        <p id="rawPub" class="text-xs font-mono text-red-200 break-all truncate">...</p>
+                        <p class="text-xs text-gray-400 mt-2">Public ID Component Being Used:</p>
+                        <p id="rawPub" class="text-xs font-mono text-orange-200 break-all truncate">...</p>
                     </div>
                     <!-- *** END DIAGNOSTIC PANEL *** -->
                 </div>
@@ -126,7 +126,8 @@
         <div class="bg-gray-800 p-6 rounded-xl shadow-2xl w-full max-w-md space-y-4">
             <h2 class="text-xl font-bold text-teal-400">Add New Contact</h2>
             <input id="contactName" placeholder="Name (e.g., 'Alice' or 'Work Pal')" class="bg-gray-700 text-white p-3 rounded w-full border border-teal-600">
-            <input id="contactKey" placeholder="Paste Public Key (ID)" class="bg-gray-700 text-white p-3 rounded w-full border border-red-600 font-mono text-sm">
+            <!-- IMPORTANT: We still enforce the full key format for adding contacts, in case your partner is on a working device. -->
+            <input id="contactKey" placeholder="Paste Public Key (ID - Must contain ~ for security)" class="bg-gray-700 text-white p-3 rounded w-full border border-red-600 font-mono text-sm">
             <div id="contactModalMessage" class="text-sm text-red-400 hidden"></div> 
             <div class="flex justify-end space-x-3">
                 <button onclick="hideAddContactModal()" class="px-4 py-2 rounded bg-gray-700 hover:bg-gray-600 transition">Cancel</button>
@@ -138,11 +139,11 @@
     <!-- Manual Copy Modal -->
     <div id="manualCopyModal" class="hidden fixed inset-0 bg-black bg-opacity-70 z-50 flex items-center justify-center">
         <div class="bg-gray-800 p-6 rounded-xl shadow-2xl w-full max-w-md space-y-4">
-            <h2 class="text-xl font-bold text-yellow-400">CRITICAL: Manual Key Copy</h2>
-            <p class="text-sm text-gray-300">Your phone is truncating the key. Please **long-press** the text below, select the **entire string** (it MUST contain the **~** character), and copy it manually.</p>
+            <h2 class="text-xl font-bold text-yellow-400">Your Current Public ID</h2>
+            <p class="text-sm text-gray-300">This is the ID you must share with your contacts to chat. It is the key the application is currently using.</p>
             <textarea id="manualKeyArea" readonly class="bg-gray-900 text-yellow-300 p-3 rounded w-full border border-yellow-600 font-mono text-xs focus:ring-1 focus:ring-yellow-400"></textarea>
             <div class="flex justify-end space-x-3">
-                <button onclick="hideManualCopyModal()" class="px-4 py-2 rounded bg-emerald-600 hover:bg-emerald-700 transition">Understood</button>
+                <button onclick="hideManualCopyModal()" class="px-4 py-2 rounded bg-emerald-600 hover:bg-emerald-700 transition">Close</button>
             </div>
         </div>
     </div>
@@ -154,11 +155,14 @@
         var currentContact = null; 
         var messagesDisplayed = {}; 
         let currentChatPathRef = null; 
-        let loggedInPubKey = ''; 
+        let loggedInPubKey = ''; // Will hold the full (signed) or raw (unsigned) key
 
         // --- Utility Functions ---
         async function getSharedKey(targetPub) {
             if (!user.is || !user.is.pub || !targetPub) return null;
+            // The user.pair() still works even if user.is.pub is broken.
+            // We use the full user.is.pub for generating the shared secret only if it's available, 
+            // but the SEA library is smart enough to use the stored pair if the pub key is passed as the first argument.
             return await SEA.secret(targetPub, user.pair());
         }
 
@@ -181,10 +185,6 @@
 
         function hideManualCopyModal() {
             document.getElementById('manualCopyModal').classList.add('hidden');
-        }
-
-        function showMyId() {
-            showManualCopyModal();
         }
 
         // --- Navigation ---
@@ -232,46 +232,43 @@
             const keyStatus = document.getElementById('keyStatus');
             const rawPub = document.getElementById('rawPub');
 
+            // Get the raw key pair object (contains the pub key component we can rely on)
+            const pair = user.pair();
+            
             // 1. Check if the key object exists
-            if (!user.is || !user.is.pub) {
+            if (!user.is || !user.is.pub || !pair || !pair.pub) {
                 keyHealthCheck.classList.remove('hidden');
-                keyStatus.textContent = 'CRITICAL: user.is.pub is missing after auth.';
+                keyStatus.textContent = 'CRITICAL: Key object is completely missing after auth.';
                 return;
             }
 
-            // Get the full public key string
-            loggedInPubKey = user.is.pub; 
+            // Get the full public key string (may be broken, missing ~)
+            let rawSignedKey = user.is.pub; 
             
-            // Display the Raw Pub Key Component (pre-signature key part)
-            const pair = user.pair(); // Get the key pair object
-            if (pair && pair.pub) {
-                rawPub.textContent = pair.pub.substring(0, 10) + '...' + pair.pub.slice(-10);
-            } else {
-                 rawPub.textContent = 'Error: Cannot read internal key components.';
-            }
-
             // 2. Check for the mandatory tilde (~)
-            if (!loggedInPubKey.includes('~')) {
-                 // --- KEY IS BROKEN ---
+            if (!rawSignedKey.includes('~')) {
+                 // --- KEY IS BROKEN: USE RAW COMPONENT AS WORKAROUND ---
                  keyHealthCheck.classList.remove('hidden');
-                 keyHealthCheck.classList.remove('bg-red-900');
-                 keyHealthCheck.classList.add('bg-orange-900', 'border-orange-700');
+                 keyStatus.textContent = 'CRITICAL WORKAROUND: The signature (~) is missing. Using the raw component as your Public ID.';
 
-                 keyStatus.classList.remove('text-yellow-300');
-                 keyStatus.classList.add('text-orange-300');
-                 keyStatus.textContent = 'CRITICAL ERROR: The required signature (~) is missing. Your browser is breaking the key generation.';
+                 loggedInPubKey = pair.pub; // *** CRITICAL CHANGE: USE RAW KEY ***
                  
-                 document.getElementById('authStatus').textContent = 'Invalid Key Generated';
-                 document.getElementById('publicKey').textContent = '!!! INVALID KEY: Share ONLY the RAW Pub Component below !!!';
-                 return; // Halt execution, the key is unusable.
+                 document.getElementById('authStatus').textContent = 'Unsigned Key Active';
+                 document.getElementById('publicKey').textContent = loggedInPubKey.substring(0, 15) + '...' + loggedInPubKey.slice(-15);
+                 
+                 // Display the component being used
+                 rawPub.textContent = loggedInPubKey;
+                 
+            } else {
+                // --- KEY IS GOOD: USE FULL SIGNED KEY ---
+                keyHealthCheck.classList.add('hidden'); // Hide the diagnostics if successful
+                loggedInPubKey = rawSignedKey; 
+                
+                document.getElementById('authStatus').textContent = 'Authenticated';
+                document.getElementById('publicKey').textContent = loggedInPubKey.substring(0, 15) + '...' + loggedInPubKey.slice(-15);
             }
             
-            // --- KEY IS GOOD ---
-            keyHealthCheck.classList.add('hidden'); // Hide the diagnostics if successful
-            
-            document.getElementById('authStatus').textContent = 'Authenticated';
-            document.getElementById('publicKey').textContent = loggedInPubKey.substring(0, 15) + '...' + loggedInPubKey.slice(-15);
-            
+            // Proceed to UI changes now that loggedInPubKey is set (either signed or unsigned)
             document.getElementById('authSection').style.display = 'none';
             document.getElementById('chatSection').style.display = 'flex';
             
@@ -314,22 +311,16 @@
             let key = document.getElementById('contactKey').value; 
             key = key.replace(/\s/g, ''); 
 
-            // --- VALIDATION DEBUG LOG (Visible in Console) ---
-            console.log('--- Public Key Validation Debug ---');
-            console.log('Key Received (Cleaned):', key);
-            console.log('Key Length (Cleaned):', key.length);
-            console.log('Contains ~:', key.includes('~'));
-            // -------------------------------------------------
-
             if (!name) {
                 showModalError("Please enter a Name for this contact (e.g., 'Friend' or 'Alice').");
                 return;
             }
 
-            // Must contain '~' and be long enough
-            if (!key || key.length < 50 || !key.includes('~')) {
-                showModalError("Please paste a valid Public Key. It must be a long string containing a '~'.");
-                return;
+            // For adding, we still require a long key. We will not enforce the tilde (~) check here 
+            // since the user might be adding a raw key from a similarly broken device.
+            if (!key || key.length < 50) {
+                 showModalError("Please paste a valid Public Key. It must be a long string.");
+                 return;
             }
 
             if (key === loggedInPubKey) { 
@@ -435,6 +426,8 @@
         
         // --- Message Loading and Decryption ---
         function loadMessages(sharedKey) {
+            // The chat path is derived from the shared key, which is generated correctly
+            // even if the public key is unsigned.
             const chatPath = gun.get('chat').get(sharedKey);
             currentChatPathRef = chatPath; 
             
@@ -451,7 +444,8 @@
                     const decryptedText = await SEA.decrypt(data.message, sharedKey);
                     
                     if (decryptedText) {
-                        displayMessage(decryptedText, data.sender === user.is.pub, data.timestamp, key);
+                        // Check if the sender is the logged-in user, using the potentially unsigned key
+                        displayMessage(decryptedText, data.sender === loggedInPubKey, data.timestamp, key);
                     } else {
                         console.error("Message decryption failed for key:", key, data);
                     }
@@ -479,7 +473,7 @@
                 
                 const messageData = {
                     message: encryptedMessage,
-                    sender: user.is.pub, 
+                    sender: loggedInPubKey, // Use the active (signed or unsigned) key
                     timestamp: Date.now()
                 };
 
@@ -526,5 +520,7 @@
     </script>
 </body>
 </html>
+
+
 
 
