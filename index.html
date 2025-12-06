@@ -3,291 +3,352 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Waku Whisper Chat</title>
+    <title>Inbondz Search - Fully Free Knowledge Engine</title>
+    
+    <!-- Load Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Load React and ReactDOM -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    
+    <!-- Load Babel for JSX and modern JS support -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        /* General styling for a professional look */
         body { font-family: 'Inter', sans-serif; }
-
-        /* Custom scrollbar for chat window */
-        #chat-window::-webkit-scrollbar { width: 6px; }
-        #chat-window::-webkit-scrollbar-thumb { background-color: #007bff; border-radius: 3px; }
-        #chat-window::-webkit-scrollbar-track { background: #f0f0f0; }
-
-        .chat-container { height: 100vh; }
-        .message-bubble {
-            box-shadow: 0 1px 1px rgba(0, 0, 0, 0.1);
+        .knowledge-background {
+            min-height: 100vh;
+            background-color: #f9fafb;
+            display: flex;
+            flex-direction: column;
         }
     </style>
 </head>
-<body class="bg-gray-100 p-0 md:p-6 flex justify-center items-center">
-
-    <!-- Main Chat Window Container -->
-    <div class="w-full chat-container max-w-2xl bg-white shadow-2xl rounded-xl flex flex-col overflow-hidden">
-        
-        <!-- Header -->
-        <header class="p-4 bg-gray-900 text-white flex justify-between items-center shadow-md">
-            <h1 class="text-xl font-bold">Waku Whisper Chat</h1>
-            <div id="status-indicator" class="text-sm px-3 py-1 rounded-full bg-red-500 flex items-center space-x-2">
-                <span class="h-2 w-2 rounded-full bg-white animate-pulse"></span>
-                <span id="connection-status">Connecting...</span>
-            </div>
-        </header>
-
-        <!-- Messages Area -->
-        <div id="chat-window" class="flex-grow p-4 overflow-y-auto flex flex-col space-y-3">
-            <div id="messages-list" class="flex flex-col space-y-3">
-                <!-- Messages will be injected here -->
-            </div>
-        </div>
-
-        <!-- Identity and Input Area -->
-        <div class="p-4 border-t border-gray-300 bg-gray-50 space-y-3">
-            <!-- Display Name Input -->
-            <div class="flex items-center space-x-2">
-                <input 
-                    id="display-name" 
-                    placeholder="Your Display Name (stored locally)" 
-                    value="User"
-                    class="flex-grow p-2 border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500"
-                >
-            </div>
-
-            <!-- Message Input -->
-            <div class="flex space-x-2">
-                <input 
-                    id="message-input" 
-                    placeholder="Type your message..." 
-                    onkeydown="if(event.key === 'Enter') sendMessage()"
-                    class="flex-grow p-3 border border-gray-300 rounded-full focus:ring-blue-500 focus:border-blue-500 shadow-inner"
-                    disabled
-                >
-                <button onclick="sendMessage()" id="send-button"
-                    class="bg-blue-600 text-white p-3 rounded-full shadow-lg hover:bg-blue-700 transition disabled:bg-gray-400"
-                    disabled
-                >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide-icon lucide-send"><path d="m22 2-7 15-2 2-2 2-7-15Z"/><path d="M22 2 11 13"/><path d="m11 13 6 6"/></svg>
-                </button>
-            </div>
-        </div>
-    </div>
-    
-    <!-- Custom Dialog/Alert -->
-    <div id="dialog" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-        <div class="bg-white p-6 rounded-xl shadow-2xl w-full max-w-sm space-y-4">
-            <p id="dialogMessage" class="text-gray-800"></p>
-            <div class="flex justify-end">
-                <button onclick="closeDialog()" class="px-4 py-2 rounded bg-gray-200 text-gray-800 hover:bg-gray-300 transition">OK</button>
-            </div>
-        </div>
+<body>
+    <div id="root">
+        <!-- React App will render here -->
     </div>
 
-    <script type="module">
-        // Import Waku SDK functions from Skypack (required for browser ES Modules)
-        import { createLightNode, Protocols, waitForRemotePeer, createContentTopic, utf8ToBytes, bytesToUtf8 } from 'https://cdn.skypack.dev/@waku/sdk';
+    <!-- The type="text/babel" tells the browser to process this script with Babel -->
+    <script type="text/babel">
+        // Import necessary icons from Lucide (mimicking the React import)
+        const { Search, Loader, Info, Home, FileText, Phone, ArrowLeft, ExternalLink } = lucide;
+        const { useState, useCallback, useEffect } = React;
 
-        // --- Waku Configuration ---
-        const CONTENT_TOPIC = createContentTopic({ applicationName: "waku-whisper-chat", version: 1, contentTopicName: "default-channel" });
-        const CHAT_KEY = "waku-chat-display-name";
-        let wakuNode;
-        let displayName = localStorage.getItem(CHAT_KEY) || "User";
+        // --- Global Constants ---
+        const WIKIPEDIA_API_URL = 'https://en.wikipedia.org/w/api.php';
+        const APP_NAME = 'Inbondz Search';
 
         // --- Utility Functions ---
 
-        /** Shows a custom dialog (replacing alert/confirm). */
-        function showDialog(message) {
-            document.getElementById('dialogMessage').textContent = message;
-            document.getElementById('dialog').classList.remove('hidden');
-        }
-
-        function closeDialog() {
-            document.getElementById('dialog').classList.add('hidden');
-        }
-        
-        function updateStatus(status, isConnected = false) {
-            const statusEl = document.getElementById('connection-status');
-            const indicator = document.getElementById('status-indicator');
-            const input = document.getElementById('message-input');
-            const button = document.getElementById('send-button');
-
-            statusEl.textContent = status;
-            
-            if (isConnected) {
-                indicator.classList.remove('bg-red-500', 'animate-pulse');
-                indicator.classList.add('bg-green-500');
-                input.disabled = false;
-                button.disabled = false;
-            } else {
-                indicator.classList.remove('bg-green-500');
-                indicator.classList.add('bg-red-500', 'animate-pulse');
-                input.disabled = true;
-                button.disabled = true;
-            }
-        }
-        
-        function updateDisplayName() {
-            const nameInput = document.getElementById('display-name');
-            nameInput.value = displayName;
-            nameInput.onchange = (e) => {
-                displayName = e.target.value.trim() || "User";
-                localStorage.setItem(CHAT_KEY, displayName);
+        /**
+         * Custom fetch function for the free Wikipedia API.
+         * Uses the 'search' list query to get relevant articles, definitions, and info.
+         */
+        const fetchWikipedia = async (query) => {
+            const params = {
+                action: 'query',
+                list: 'search',
+                srsearch: query,
+                format: 'json',
+                origin: '*', // Required for CORS
+                srlimit: 15, // Retrieve more results for a better experience
+                srsort: 'relevance',
             };
-        }
-        
-        function renderMessage(messageData, isSelf) {
-            const list = document.getElementById('messages-list');
             
-            const messageEl = document.createElement('div');
-            messageEl.className = `flex ${isSelf ? 'justify-end' : 'justify-start'}`;
-
-            const baseClass = "p-2.5 rounded-xl message-bubble max-w-[80%] relative";
-            const selfClass = "bg-blue-100 ml-auto rounded-br-md"; 
-            const otherClass = "bg-white mr-auto rounded-tl-md";
-
-            const bubble = document.createElement('div');
-            bubble.className = `${baseClass} ${isSelf ? selfClass : otherClass} flex flex-col`;
-            
-            // Name (if not self)
-            if (!isSelf) {
-                const nameSpan = document.createElement('span');
-                nameSpan.className = "text-xs font-bold mb-1 -mt-0.5 text-blue-600";
-                nameSpan.textContent = messageData.sender;
-                bubble.appendChild(nameSpan);
-            }
-
-            // Text Content
-            const textP = document.createElement('p');
-            textP.className = "text-sm text-gray-800 break-words";
-            textP.textContent = messageData.text;
-            bubble.appendChild(textP);
-
-            // Footer (Time)
-            const time = new Date(messageData.timestamp).toLocaleTimeString([], { hour: '2-digit', minute:'2-digit' });
-            const footerDiv = document.createElement('div');
-            footerDiv.className = "flex justify-end items-center mt-1 space-x-1";
-            
-            const timeSpan = document.createElement('span');
-            timeSpan.className = `text-[10px] opacity-70 ${isSelf ? 'text-gray-600' : 'text-gray-500'}`;
-            timeSpan.textContent = time;
-            footerDiv.appendChild(timeSpan);
-            
-            bubble.appendChild(footerDiv);
-            messageEl.appendChild(bubble);
-
-            list.appendChild(messageEl);
-            
-            // Scroll to the bottom
-            const container = document.getElementById('chat-window');
-            container.scrollTop = container.scrollHeight;
-        }
-
-        // --- Waku Core Functions ---
-
-        async function initWaku() {
-            updateStatus("Initializing Waku...");
+            const url = WIKIPEDIA_API_URL + '?' + new URLSearchParams(params).toString();
             
             try {
-                // 1. Create a Waku Light Node
-                wakuNode = await createLightNode({ defaultContentTopic: CONTENT_TOPIC });
-                await wakuNode.start();
-                updateStatus("Waku Node Started, connecting to peers...");
-
-                // 2. Wait for a remote peer that supports the LightPush protocol
-                await waitForRemotePeer(wakuNode, [Protocols.LightPush]);
-                updateStatus("Connected to Network", true);
+                const response = await fetch(url);
+                if (!response.ok) {
+                    throw new Error(`API returned status: ${response.status}`);
+                }
                 
-                // 3. Start the Filter subscription to receive messages
-                await subscribeToMessages();
-
-            } catch (error) {
-                console.error("Waku initialization error:", error);
-                updateStatus("Error: See Console", false);
-                showDialog(`Failed to initialize Waku node. This may require a modern browser or specific network settings. Error: ${error.message}`);
+                const data = await response.json();
+                return data.query.search || [];
+            } catch (e) {
+                console.error("Wikipedia API Fetch Error:", e);
+                throw new Error("Failed to fetch results from the knowledge base.");
             }
-        }
-        
-        async function subscribeToMessages() {
-            if (!wakuNode) return;
+        };
 
-            // Define callback function for new messages
-            const callback = (wakuMessage) => {
-                if (!wakuMessage.payload) return;
-
-                // Decode the payload bytes into a JSON string and parse
-                const payloadJson = bytesToUtf8(wakuMessage.payload);
-                try {
-                    const messageData = JSON.parse(payloadJson);
-                    // Check if it's a valid chat message structure
-                    if (messageData.text && messageData.sender) {
-                        const isSelf = messageData.sender === displayName;
-                        renderMessage(messageData, isSelf);
-                    }
-                } catch (e) {
-                    console.warn("Could not parse Waku message payload:", e);
-                }
-            };
+        // --- Component: Search Result Card ---
+        const SearchResultCard = ({ result }) => {
+            const pageTitle = result.title;
             
-            // Subscribe to the content topic
-            const subscription = await wakuNode.filter.subscribe([CONTENT_TOPIC], callback);
-            console.log("Waku Filter Subscription active.", subscription);
-        }
-
-        window.sendMessage = async function() {
-            const input = document.getElementById('message-input');
-            const text = input.value.trim();
-            const sender = document.getElementById('display-name').value.trim() || "User";
-
-            if (!text || !wakuNode || !wakuNode.isStarted) {
-                showDialog("Waku node is not ready or message is empty.");
-                return;
-            }
-
-            input.value = ''; // Clear input field
-
-            const messageData = {
-                text: text,
-                sender: sender,
-                timestamp: Date.now()
-            };
-
-            // 1. Encode message data into bytes (required by Waku)
-            const payloadBytes = utf8ToBytes(JSON.stringify(messageData));
-
-            // 2. Create the Waku Message object
-            const wakuMessage = {
-                payload: payloadBytes,
-                timestamp: new Date(),
-                contentTopic: CONTENT_TOPIC
-            };
-
-            // 3. Push the message using the LightPush protocol
+            // Clean up snippet HTML tags and entities for a cleaner display
+            let snippet = result.snippet.replace(/<span[^>]*>/g, '').replace(/<\/span>/g, '');
+            // Use DOMParser to decode HTML entities (like &quot;) cleanly
             try {
-                const response = await wakuNode.lightPush.push(wakuMessage);
-                if (response.isSuccess) {
-                    // Render the message immediately for the sender
-                    renderMessage(messageData, true);
-                } else {
-                     showDialog("Message failed to push to the network.");
-                     console.error("Light Push failed:", response);
-                }
-            } catch (error) {
-                console.error("Waku Push Error:", error);
-                showDialog("Error pushing message to Waku network. Check console.");
+                snippet = new DOMParser().parseFromString(snippet, 'text/html').documentElement.textContent;
+            } catch (e) {
+                // Fallback for simple content
             }
+
+
+            const pageId = result.pageid;
+            const pageUrl = `https://en.wikipedia.org/?curid=${pageId}`;
+
+            return (
+                <div className="p-4 bg-white rounded-xl shadow-md hover:shadow-lg transition duration-300 border-l-4 border-blue-500 flex flex-col">
+                    <a href={pageUrl} target="_blank" rel="noopener noreferrer" className="flex items-center justify-between">
+                        <h2 className="text-xl font-medium text-blue-700 hover:text-blue-900 leading-tight">
+                            {pageTitle}
+                        </h2>
+                        <ExternalLink size={18} className="text-gray-400 hover:text-blue-600 transition flex-shrink-0 ml-2" />
+                    </a>
+                    
+                    <p 
+                        className="text-gray-700 mt-2 text-sm line-clamp-3 mb-2" 
+                    >
+                        {snippet}
+                    </p>
+                    <div className="mt-auto pt-2 text-xs text-green-600 truncate">
+                        <span className="font-mono">{pageUrl}</span>
+                    </div>
+                </div>
+            );
         };
 
-        // --- Startup ---
-        window.onload = () => {
-            updateDisplayName();
-            initWaku();
+        // --- Main App Component ---
+        const App = () => {
+            const [query, setQuery] = useState('');
+            const [results, setResults] = useState([]);
+            const [isLoading, setIsLoading] = useState(false);
+            const [error, setError] = useState(null);
+            const [view, setView] = useState('home'); // 'home' | 'results' | 'policy' | 'terms' | 'contact'
+
+            // Load initial state from local storage and run search if query exists
+            useEffect(() => {
+                const savedQuery = localStorage.getItem(APP_NAME + '_query');
+                if (savedQuery) {
+                    setQuery(savedQuery);
+                    handleSearch(savedQuery, true); // Rerun search on load if query exists
+                    setView('results');
+                }
+            }, []);
+
+            // Function to handle the search logic
+            const handleSearch = useCallback(async (searchQuery, isInitialLoad = false) => {
+                const trimmedQuery = searchQuery.trim();
+                if (!trimmedQuery) {
+                    setResults([]);
+                    setError(null);
+                    setView('home');
+                    return;
+                }
+
+                setIsLoading(true);
+                setError(null);
+                localStorage.setItem(APP_NAME + '_query', trimmedQuery);
+                if (!isInitialLoad) {
+                    setView('results');
+                }
+
+                try {
+                    const data = await fetchWikipedia(trimmedQuery);
+                    setResults(data);
+                } catch (err) {
+                    console.error("Search failed:", err);
+                    setError(err.message || "An unknown error occurred during search.");
+                    setResults([]);
+                } finally {
+                    setIsLoading(false);
+                }
+            }, []);
+
+            // Handle form submission
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                handleSearch(query);
+            };
+
+            // --- Content Rendering based on View State ---
+
+            const renderMainContent = () => {
+                if (view === 'home') {
+                    return (
+                        <div className="flex flex-col items-center justify-center min-h-[50vh]">
+                            <h1 className="text-6xl font-black text-gray-900 mb-6 tracking-tight">
+                                <span className="text-blue-600">inbondz</span> search
+                            </h1>
+                            <p className="text-xl text-gray-500 mb-10 max-w-lg text-center">
+                                Find definitions, facts, and encyclopedia knowledge instantly.
+                            </p>
+                        </div>
+                    );
+                }
+
+                if (view === 'results') {
+                    if (isLoading) {
+                        return (
+                            <div className="py-20 flex flex-col items-center justify-center text-blue-600">
+                                <Loader size={48} className="animate-spin mb-4" />
+                                <p className="text-lg">Searching the knowledge base...</p>
+                            </div>
+                        );
+                    }
+
+                    if (error) {
+                        return (
+                            <div className="p-6 bg-red-100 border-l-4 border-red-500 text-red-700 rounded-lg flex items-start">
+                                <Info className="w-6 h-6 mr-4 flex-shrink-0" />
+                                <div>
+                                    <h3 className="font-semibold text-lg mb-1">Search Error</h3>
+                                    <p>{error}</p>
+                                    <p className="mt-2 text-sm opacity-80">This usually means an issue with the external Wikipedia API or your connection.</p>
+                                </div>
+                            </div>
+                        );
+                    }
+
+                    if (results.length === 0) {
+                        return (
+                            <div className="p-10 text-center bg-gray-100 rounded-xl text-gray-600">
+                                <Info size={32} className="mx-auto mb-3 text-gray-400" />
+                                <p className="text-lg font-medium">No results found for **"{query}"**.</p>
+                                <p className="text-sm mt-1">Try a more general search term.</p>
+                            </div>
+                        );
+                    }
+
+                    return (
+                        <div className="space-y-6">
+                            <p className="text-sm text-gray-500 font-medium">
+                                Showing {results.length} results for **"{query}"**
+                            </p>
+                            <div className="grid md:grid-cols-2 gap-4">
+                                {results.map((result) => (
+                                    <SearchResultCard key={result.pageid} result={result} />
+                                ))}
+                            </div>
+                        </div>
+                    );
+                }
+                
+                // --- Static Pages ---
+                
+                const staticPageContent = {
+                    policy: { title: "Privacy Policy", content: "We do not track or store any personal data. All searches are conducted anonymously via the free Wikipedia API and are not logged by this site. Your search query is temporarily saved in your browser's local storage to persist your last search, which you can clear at any time." },
+                    terms: { title: "Terms of Service", content: "This service is provided 'as is' and relies on the content provided by the Wikipedia API, which is subject to the Creative Commons Attribution-ShareAlike 3.0 Unported License (CC BY-SA). We claim no ownership over the search results. By using this site, you agree not to use the service for any illegal or harmful purposes." },
+                    contact: { title: "Contact Information", content: (
+                        <>
+                            <p className="mb-3">For all general inquiries and grievance handling, please contact us at:</p>
+                            <a href="mailto:grievance@inbondz.com" className="text-blue-600 hover:text-blue-800 font-semibold flex items-center">
+                                <Phone size={18} className="mr-2"/> grievance@inbondz.com
+                            </a>
+                        </>
+                    ) },
+                };
+
+                const page = staticPageContent[view];
+                if (page) {
+                    return (
+                        <div className="bg-white p-8 md:p-12 rounded-xl shadow-lg border-t-4 border-blue-500">
+                            <div className="flex items-center mb-6">
+                                <button onClick={() => setView('home')} className="p-2 mr-4 rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 transition">
+                                    <ArrowLeft size={20} />
+                                </button>
+                                <h2 className="text-3xl font-bold text-gray-800">{page.title}</h2>
+                            </div>
+                            <div className="text-gray-700 leading-relaxed space-y-4">
+                                {typeof page.content === 'string' ? <p>{page.content}</p> : page.content}
+                            </div>
+                        </div>
+                    );
+                }
+
+                return null;
+            };
             
-            // Expose utility functions globally for HTML calls
-            window.closeDialog = closeDialog;
+            // Determine if the search bar should be centered (home view) or sticky (results view)
+            const isHomeView = view === 'home';
+            const searchWrapperClass = isHomeView 
+                ? "w-full max-w-2xl transition-all duration-500"
+                : "w-full max-w-2xl fixed top-0 left-1/2 -translate-x-1/2 transform -translate-x-1/2 z-50 bg-white pt-4 pb-4 shadow-xl transition-all duration-500 md:shadow-lg";
+
+            return (
+                <div className="knowledge-background">
+                    
+                    {/* Header / Search Bar */}
+                    <div className={`p-4 ${isHomeView ? 'pt-24' : 'pt-4 md:pt-6'} flex justify-center`}>
+                        <form onSubmit={handleSubmit} className={searchWrapperClass}>
+                            <div className="flex items-center bg-white border-2 border-blue-500 rounded-full shadow-2xl hover:shadow-blue-300/50">
+                                <input
+                                    type="text"
+                                    value={query}
+                                    onChange={(e) => setQuery(e.target.value)}
+                                    placeholder={isHomeView ? "Search the knowledge base..." : query || "Search..."}
+                                    className="flex-grow p-3 pl-6 text-lg rounded-l-full focus:outline-none"
+                                />
+                                
+                                <button
+                                    type="submit"
+                                    disabled={isLoading}
+                                    className="p-3 bg-blue-600 text-white rounded-r-full hover:bg-blue-700 transition disabled:bg-blue-400 flex items-center justify-center"
+                                >
+                                    {isLoading ? <Loader size={24} className="animate-spin" /> : <Search size={24} />}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+
+                    {/* Main Content Area */}
+                    <main className={`flex-grow p-4 md:p-8 flex justify-center ${!isHomeView ? 'mt-16 md:mt-24' : ''}`}>
+                        <div className="w-full max-w-4xl">
+                            {renderMainContent()}
+                        </div>
+                    </main>
+                    
+                    {/* Footer */}
+                    <footer className="bg-gray-900 text-white p-6 md:p-8 mt-auto">
+                        <div className="max-w-4xl mx-auto flex flex-col md:flex-row justify-between items-center md:items-start space-y-4 md:space-y-0">
+                            
+                            <div className="text-center md:text-left">
+                                <h3 className="text-xl font-bold mb-1">
+                                    <span className="text-blue-400">inbondz</span> search
+                                </h3>
+                                <p className="text-xs text-gray-400">
+                                    Knowledge powered by the free MediaWiki API.
+                                </p>
+                            </div>
+
+                            <nav className="flex flex-wrap justify-center md:justify-end space-x-6 text-sm">
+                                <button onClick={() => setView('home')} className="flex items-center hover:text-blue-400 transition">
+                                    <Home size={16} className="mr-1"/> Home
+                                </button>
+                                <button onClick={() => setView('policy')} className="flex items-center hover:text-blue-400 transition">
+                                    <FileText size={16} className="mr-1"/> Privacy Policy
+                                </button>
+                                <button onClick={() => setView('terms')} className="flex items-center hover:text-blue-400 transition">
+                                    <FileText size={16} className="mr-1"/> Terms of Service
+                                </button>
+                                <button onClick={() => setView('contact')} className="flex items-center hover:text-blue-400 transition">
+                                    <Phone size={16} className="mr-1"/> Contact
+                                </button>
+                            </nav>
+                        </div>
+                        <div className="mt-4 pt-4 border-t border-gray-700 text-center text-xs text-gray-500">
+                            &copy; 2024 Inbondz Search. All rights reserved.
+                        </div>
+                    </footer>
+                </div>
+            );
         };
+
+        // Render the application to the 'root' div
+        const container = document.getElementById('root');
+        const root = ReactDOM.createRoot(container);
+        root.render(<App />);
 
     </script>
 </body>
 </html>
+
+
 
 
 
