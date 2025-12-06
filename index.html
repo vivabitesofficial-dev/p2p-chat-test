@@ -5,24 +5,56 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Inbondz Search - Fully Free Knowledge Engine</title>
     
+    <!-- PWA REQUIREMENTS: Manifest and Theme Color -->
+    <link rel="manifest" href="/manifest.webmanifest">
+    <meta name="theme-color" content="#1f2937"> <!-- Dark gray for app interface -->
+    
+    <!-- FAVICON: Using an SVG Data URI in the requested #9EA3A3 color (Magnifying Glass) -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cpath fill='%239EA3A3' d='M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376c-34.4 25.1-76.8 40-122.7 40C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208zM208 100c61.9 0 112 50.1 112 112s-50.1 112-112 112S96 270.1 96 208S146.1 100 208 100z'/%3E%3C/svg%3E">
+
     <!-- Load Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'media', 
+            theme: {
+                extend: {
+                    colors: {
+                        'primary-gray': '#9EA3A3',
+                        'dark-bg': '#1f2937', 
+                        'dark-card': '#374151',
+                        'light-bg': '#f9fafb', 
+                    },
+                }
+            }
+        }
+    </script>
     
-    <!-- Load React and ReactDOM -->
+    <!-- Load React, ReactDOM, Babel, and Font Awesome -->
     <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-    
-    <!-- Load Babel for JSX and modern JS support -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
     
     <style>
-        /* General styling for a professional look */
         body { font-family: 'Inter', sans-serif; }
         .knowledge-background {
             min-height: 100vh;
-            background-color: #f9fafb;
+            background-color: var(--tw-light-bg);
             display: flex;
             flex-direction: column;
+        }
+        .dark .knowledge-background {
+            background-color: #0d1117; 
+        }
+        .fa-icon { font-size: 24px; }
+        
+        /* Custom styles to ensure placeholder and text color contrast in dark mode */
+        .search-input::placeholder {
+            color: #4b5563; /* Darker gray for light mode placeholder */
+        }
+        .dark .search-input::placeholder {
+            color: #9ca3af; /* Lighter gray for dark mode placeholder */
         }
     </style>
 </head>
@@ -31,121 +63,183 @@
         <!-- React App will render here -->
     </div>
 
-    <!-- The type="text/babel" tells the browser to process this script with Babel -->
+    <!-- PWA MANIFEST and SERVICE WORKER Setup -->
+    <script>
+        // 1. WEB MANIFEST CONTENT
+        const manifestContent = {
+            name: "Inbondz Search",
+            short_name: "Inbondz",
+            description: "A fast, ad-free, knowledge search engine.",
+            start_url: "/",
+            display: "standalone",
+            background_color: "#0d1117",
+            theme_color: "#1f2937",
+            icons: [
+                { src: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cpath fill='%239EA3A3' d='M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376c-34.4 25.1-76.8 40-122.7 40C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208zM208 100c61.9 0 112 50.1 112 112s-50.1 112-112 112S96 270.1 96 208S146.1 100 208 100z'/%3E%3C/svg%3E", sizes: "192x192", type: "image/svg+xml" },
+                { src: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cpath fill='%239EA3A3' d='M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376c-34.4 25.1-76.8 40-122.7 40C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208zM208 100c61.9 0 112 50.1 112 112s-50.1 112-112 112S96 270.1 96 208S146.1 100 208 100z'/%3E%3C/svg%3E", sizes: "512x512", type: "image/svg+xml" }
+            ]
+        };
+
+        // 2. Register Service Worker for Offline Functionality
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                const workerScript = `
+                    const CACHE_NAME = 'inbondz-cache-v1';
+                    const urlsToCache = [
+                        '/',
+                        'https://cdn.tailwindcss.com',
+                        'https://unpkg.com/react@18/umd/react.development.js',
+                        'https://unpkg.com/react-dom@18/umd/react-dom.development.js',
+                        'https://unpkg.com/@babel/standalone/babel.min.js',
+                        'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css'
+                    ];
+
+                    self.addEventListener('install', (event) => {
+                        self.skipWaiting(); 
+                        event.waitUntil(
+                            caches.open(CACHE_NAME)
+                                .then((cache) => {
+                                    console.log('Opened cache, adding core assets.');
+                                    return cache.addAll(urlsToCache).catch(err => {
+                                        console.error('Failed to cache some assets (e.g., cross-origin failure):', err);
+                                    });
+                                })
+                        );
+                    });
+
+                    self.addEventListener('fetch', (event) => {
+                        if (event.request.method !== 'GET') return;
+                        if (event.request.url.includes('wikipedia.org')) return;
+                        
+                        event.respondWith(
+                            caches.match(event.request).then((response) => {
+                                return response || fetch(event.request);
+                            })
+                        );
+                    });
+
+                    self.addEventListener('activate', (event) => {
+                        console.log('Service Worker activated.');
+                        const cacheWhitelist = [CACHE_NAME];
+                        event.waitUntil(
+                            caches.keys().then((cacheNames) => {
+                                return Promise.all(
+                                    cacheNames.map((cacheName) => {
+                                        if (cacheWhitelist.indexOf(cacheName) === -1) {
+                                            return caches.delete(cacheName);
+                                        }
+                                    })
+                                );
+                            })
+                        );
+                    });
+                `;
+
+                const blob = new Blob([workerScript], { type: 'application/javascript' });
+                const workerUrl = URL.createObjectURL(blob);
+
+                navigator.serviceWorker.register(workerUrl, { scope: '/' })
+                    .then(reg => {
+                        console.log('Service Worker registered successfully!', reg);
+                    })
+                    .catch(err => {
+                        console.error('Service Worker registration failed:', err);
+                    });
+            });
+        }
+
+        // 3. Fake the manifest file reference
+        document.querySelector('link[rel="manifest"]').href = 'data:application/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(manifestContent));
+    </script>
+    
+    <!-- React Application Logic -->
     <script type="text/babel">
-        // Import necessary icons from Lucide (mimicking the React import)
-        const { Search, Loader, Info, Home, FileText, Phone, ArrowLeft, ExternalLink } = lucide;
         const { useState, useCallback, useEffect } = React;
-
-        // --- Global Constants ---
         const WIKIPEDIA_API_URL = 'https://en.wikipedia.org/w/api.php';
-        const APP_NAME = 'Inbondz Search';
+        const APP_NAME = 'Inbondz Search'; 
 
-        // --- Utility Functions ---
-
-        /**
-         * Custom fetch function for the free Wikipedia API.
-         * Uses the 'search' list query to get relevant articles, definitions, and info.
-         */
         const fetchWikipedia = async (query) => {
-            const params = {
-                action: 'query',
-                list: 'search',
-                srsearch: query,
-                format: 'json',
-                origin: '*', // Required for CORS
-                srlimit: 15, // Retrieve more results for a better experience
-                srsort: 'relevance',
-            };
-            
+            const params = { action: 'query', list: 'search', srsearch: query, format: 'json', origin: '*', srlimit: 15, srsort: 'relevance' };
             const url = WIKIPEDIA_API_URL + '?' + new URLSearchParams(params).toString();
             
             try {
-                const response = await fetch(url);
-                if (!response.ok) {
-                    throw new Error(`API returned status: ${response.status}`);
+                // Use exponential backoff for API calls
+                let response;
+                const maxRetries = 3;
+                let delay = 1000;
+
+                for (let i = 0; i < maxRetries; i++) {
+                    response = await fetch(url);
+                    if (response.ok) {
+                        break;
+                    }
+                    if (i < maxRetries - 1) {
+                        await new Promise(resolve => setTimeout(resolve, delay));
+                        delay *= 2; // Exponential backoff
+                    } else {
+                        throw new Error(`API returned status: ${response.status}`);
+                    }
                 }
                 
                 const data = await response.json();
                 return data.query.search || [];
             } catch (e) {
                 console.error("Wikipedia API Fetch Error:", e);
-                throw new Error("Failed to fetch results from the knowledge base.");
+                if (!navigator.onLine) {
+                    throw new Error("You appear to be offline. Search requires an internet connection.");
+                } else {
+                    throw new Error("Failed to fetch results from the knowledge base.");
+                }
             }
         };
 
-        // --- Component: Search Result Card ---
         const SearchResultCard = ({ result }) => {
             const pageTitle = result.title;
-            
-            // Clean up snippet HTML tags and entities for a cleaner display
             let snippet = result.snippet.replace(/<span[^>]*>/g, '').replace(/<\/span>/g, '');
-            // Use DOMParser to decode HTML entities (like &quot;) cleanly
-            try {
-                snippet = new DOMParser().parseFromString(snippet, 'text/html').documentElement.textContent;
-            } catch (e) {
-                // Fallback for simple content
-            }
-
-
+            try { snippet = new DOMParser().parseFromString(snippet, 'text/html').documentElement.textContent; } catch (e) {}
             const pageId = result.pageid;
             const pageUrl = `https://en.wikipedia.org/?curid=${pageId}`;
 
             return (
-                <div className="p-4 bg-white rounded-xl shadow-md hover:shadow-lg transition duration-300 border-l-4 border-blue-500 flex flex-col">
+                <div className="p-4 bg-white dark:bg-dark-card rounded-xl shadow-md hover:shadow-lg transition duration-300 border-l-4 border-primary-gray flex flex-col">
                     <a href={pageUrl} target="_blank" rel="noopener noreferrer" className="flex items-center justify-between">
-                        <h2 className="text-xl font-medium text-blue-700 hover:text-blue-900 leading-tight">
+                        <h2 className="text-xl font-medium text-gray-800 dark:text-gray-200 hover:text-primary-gray leading-tight">
                             {pageTitle}
                         </h2>
-                        <ExternalLink size={18} className="text-gray-400 hover:text-blue-600 transition flex-shrink-0 ml-2" />
+                        <i className="fas fa-external-link-alt text-gray-400 hover:text-primary-gray transition flex-shrink-0 ml-2"></i>
                     </a>
-                    
-                    <p 
-                        className="text-gray-700 mt-2 text-sm line-clamp-3 mb-2" 
-                    >
-                        {snippet}
-                    </p>
-                    <div className="mt-auto pt-2 text-xs text-green-600 truncate">
+                    <p className="text-gray-700 dark:text-gray-400 mt-2 text-sm line-clamp-3 mb-2">{snippet}</p>
+                    <div className="mt-auto pt-2 text-xs text-gray-500 truncate">
                         <span className="font-mono">{pageUrl}</span>
                     </div>
                 </div>
             );
         };
 
-        // --- Main App Component ---
         const App = () => {
             const [query, setQuery] = useState('');
             const [results, setResults] = useState([]);
             const [isLoading, setIsLoading] = useState(false);
             const [error, setError] = useState(null);
-            const [view, setView] = useState('home'); // 'home' | 'results' | 'policy' | 'terms' | 'contact'
+            const [view, setView] = useState('home'); 
 
-            // Load initial state from local storage and run search if query exists
             useEffect(() => {
                 const savedQuery = localStorage.getItem(APP_NAME + '_query');
                 if (savedQuery) {
                     setQuery(savedQuery);
-                    handleSearch(savedQuery, true); // Rerun search on load if query exists
+                    handleSearch(savedQuery, true); 
                     setView('results');
                 }
             }, []);
 
-            // Function to handle the search logic
             const handleSearch = useCallback(async (searchQuery, isInitialLoad = false) => {
                 const trimmedQuery = searchQuery.trim();
-                if (!trimmedQuery) {
-                    setResults([]);
-                    setError(null);
-                    setView('home');
-                    return;
-                }
+                if (!trimmedQuery) { setResults([]); setError(null); setView('home'); return; }
 
                 setIsLoading(true);
                 setError(null);
                 localStorage.setItem(APP_NAME + '_query', trimmedQuery);
-                if (!isInitialLoad) {
-                    setView('results');
-                }
+                if (!isInitialLoad) setView('results');
 
                 try {
                     const data = await fetchWikipedia(trimmedQuery);
@@ -159,22 +253,16 @@
                 }
             }, []);
 
-            // Handle form submission
-            const handleSubmit = (e) => {
-                e.preventDefault();
-                handleSearch(query);
-            };
-
-            // --- Content Rendering based on View State ---
+            const handleSubmit = (e) => { e.preventDefault(); handleSearch(query); };
 
             const renderMainContent = () => {
                 if (view === 'home') {
                     return (
                         <div className="flex flex-col items-center justify-center min-h-[50vh]">
-                            <h1 className="text-6xl font-black text-gray-900 mb-6 tracking-tight">
-                                <span className="text-blue-600">inbondz</span> search
+                            <h1 className="text-6xl font-black text-black dark:text-gray-300 mb-6 tracking-tight">
+                                <span style={{ color: '#9EA3A3' }}>Inbondz</span> Search
                             </h1>
-                            <p className="text-xl text-gray-500 mb-10 max-w-lg text-center">
+                            <p className="text-xl text-gray-600 dark:text-gray-400 mb-10 max-w-lg text-center">
                                 Find definitions, facts, and encyclopedia knowledge instantly.
                             </p>
                         </div>
@@ -184,21 +272,21 @@
                 if (view === 'results') {
                     if (isLoading) {
                         return (
-                            <div className="py-20 flex flex-col items-center justify-center text-blue-600">
-                                <Loader size={48} className="animate-spin mb-4" />
-                                <p className="text-lg">Searching the knowledge base...</p>
+                            <div className="py-20 flex flex-col items-center justify-center text-primary-gray">
+                                <i className="fas fa-spinner fa-pulse fa-4x mb-4"></i>
+                                <p className="text-lg text-gray-600 dark:text-gray-300">Searching the knowledge base...</p>
                             </div>
                         );
                     }
 
                     if (error) {
                         return (
-                            <div className="p-6 bg-red-100 border-l-4 border-red-500 text-red-700 rounded-lg flex items-start">
-                                <Info className="w-6 h-6 mr-4 flex-shrink-0" />
+                            <div className="p-6 bg-red-100 dark:bg-red-900 border-l-4 border-red-500 text-red-700 dark:text-red-300 rounded-lg flex items-start">
+                                <i className="fas fa-exclamation-triangle w-6 h-6 mr-4 flex-shrink-0"></i>
                                 <div>
                                     <h3 className="font-semibold text-lg mb-1">Search Error</h3>
                                     <p>{error}</p>
-                                    <p className="mt-2 text-sm opacity-80">This usually means an issue with the external Wikipedia API or your connection.</p>
+                                    <p className="mt-2 text-sm opacity-80">Check your connection or try a different search term.</p>
                                 </div>
                             </div>
                         );
@@ -206,8 +294,8 @@
 
                     if (results.length === 0) {
                         return (
-                            <div className="p-10 text-center bg-gray-100 rounded-xl text-gray-600">
-                                <Info size={32} className="mx-auto mb-3 text-gray-400" />
+                            <div className="p-10 text-center bg-gray-100 dark:bg-gray-800 rounded-xl text-gray-600 dark:text-gray-400">
+                                <i className="fas fa-info-circle fa-2x mx-auto mb-3 text-primary-gray"></i>
                                 <p className="text-lg font-medium">No results found for **"{query}"**.</p>
                                 <p className="text-sm mt-1">Try a more general search term.</p>
                             </div>
@@ -216,7 +304,7 @@
 
                     return (
                         <div className="space-y-6">
-                            <p className="text-sm text-gray-500 font-medium">
+                            <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">
                                 Showing {results.length} results for **"{query}"**
                             </p>
                             <div className="grid md:grid-cols-2 gap-4">
@@ -228,33 +316,25 @@
                     );
                 }
                 
-                // --- Static Pages ---
-                
                 const staticPageContent = {
-                    policy: { title: "Privacy Policy", content: "We do not track or store any personal data. All searches are conducted anonymously via the free Wikipedia API and are not logged by this site. Your search query is temporarily saved in your browser's local storage to persist your last search, which you can clear at any time." },
-                    terms: { title: "Terms of Service", content: "This service is provided 'as is' and relies on the content provided by the Wikipedia API, which is subject to the Creative Commons Attribution-ShareAlike 3.0 Unported License (CC BY-SA). We claim no ownership over the search results. By using this site, you agree not to use the service for any illegal or harmful purposes." },
-                    contact: { title: "Contact Information", content: (
-                        <>
-                            <p className="mb-3">For all general inquiries and grievance handling, please contact us at:</p>
-                            <a href="mailto:grievance@inbondz.com" className="text-blue-600 hover:text-blue-800 font-semibold flex items-center">
-                                <Phone size={18} className="mr-2"/> grievance@inbondz.com
-                            </a>
-                        </>
-                    ) },
+                    policy: { title: "Privacy Policy", content: (<><p className='font-semibold'>1. Data Collection and Usage</p><p>We strictly adhere to a zero-data-collection policy for search queries. We do not track, record, or store any personal data or individual search terms entered on this website.</p><p className='font-semibold mt-4'>2. Third-Party API</p><p>This service operates by sending your query directly to the free, public Wikipedia/MediaWiki API. We are an intermediary and have no control over how Wikipedia handles anonymous API requests.</p><p className='font-semibold mt-4'>3. Local Storage</p><p>Your most recent search term is temporarily stored in your browser's local storage solely for user convenience (to persist the search bar content across sessions). This data never leaves your device and can be cleared by deleting your browser cache.</p></>) },
+                    terms: { title: "Terms of Service", content: (<><p className='font-semibold'>1. Content Disclaimer</p><p>This service provides search results fetched directly from the Wikipedia API. All search results are governed by the <a href="https://creativecommons.org/licenses/by-sa/3.0/" target="_blank" className='text-primary-gray hover:text-gray-600 underline'>Creative Commons Attribution-ShareAlike 3.0 Unported License (CC BY-SA)</a>. We are not the authors of the content and assume no liability for the accuracy or completeness of the results.</p><p className='font-semibold mt-4'>2. Service Provision</p><p>The Inbondz Search service is provided on an "as is" and "as available" basis, without any warranties. We reserve the right to modify or discontinue the service without notice.</p><p className='font-semibold mt-4'>3. Prohibited Use</p><p>Users must not employ this service for automated scraping, illegal activities, or in any way that could damage, disable, or overburden the service or the upstream Wikipedia API.</p></>) },
+                    contact: { title: "Contact Information", content: (<><p className="mb-3">For all official correspondence, technical support, and grievance handling, please use the dedicated email address below:</p><a href="mailto:grievance@inbondz.com" className="text-primary-gray hover:text-gray-600 font-semibold flex items-center"><i className="fas fa-envelope mr-2"></i> grievance@inbondz.com</a></>) },
                 };
 
                 const page = staticPageContent[view];
                 if (page) {
                     return (
-                        <div className="bg-white p-8 md:p-12 rounded-xl shadow-lg border-t-4 border-blue-500">
+                        <div className="bg-white dark:bg-gray-800 p-8 md:p-12 rounded-xl shadow-lg border-t-4 border-primary-gray">
                             <div className="flex items-center mb-6">
-                                <button onClick={() => setView('home')} className="p-2 mr-4 rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 transition">
-                                    <ArrowLeft size={20} />
+                                {/* This is the button inside the static content to go to home */}
+                                <button onClick={() => setView('home')} className="p-2 mr-4 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-600 transition">
+                                    <i className="fas fa-arrow-left"></i>
                                 </button>
-                                <h2 className="text-3xl font-bold text-gray-800">{page.title}</h2>
+                                <h2 className="text-3xl font-bold text-gray-800 dark:text-gray-50">{page.title}</h2>
                             </div>
-                            <div className="text-gray-700 leading-relaxed space-y-4">
-                                {typeof page.content === 'string' ? <p>{page.content}</p> : page.content}
+                            <div className="text-gray-700 dark:text-gray-300 leading-relaxed space-y-4">
+                                {page.content}
                             </div>
                         </div>
                     );
@@ -263,90 +343,106 @@
                 return null;
             };
             
-            // Determine if the search bar should be centered (home view) or sticky (results view)
             const isHomeView = view === 'home';
-            const searchWrapperClass = isHomeView 
-                ? "w-full max-w-2xl transition-all duration-500"
-                : "w-full max-w-2xl fixed top-0 left-1/2 -translate-x-1/2 transform -translate-x-1/2 z-50 bg-white pt-4 pb-4 shadow-xl transition-all duration-500 md:shadow-lg";
 
             return (
                 <div className="knowledge-background">
                     
-                    {/* Header / Search Bar */}
-                    <div className={`p-4 ${isHomeView ? 'pt-24' : 'pt-4 md:pt-6'} flex justify-center`}>
-                        <form onSubmit={handleSubmit} className={searchWrapperClass}>
-                            <div className="flex items-center bg-white border-2 border-blue-500 rounded-full shadow-2xl hover:shadow-blue-300/50">
-                                <input
-                                    type="text"
-                                    value={query}
-                                    onChange={(e) => setQuery(e.target.value)}
-                                    placeholder={isHomeView ? "Search the knowledge base..." : query || "Search..."}
-                                    className="flex-grow p-3 pl-6 text-lg rounded-l-full focus:outline-none"
-                                />
-                                
-                                <button
-                                    type="submit"
-                                    disabled={isLoading}
-                                    className="p-3 bg-blue-600 text-white rounded-r-full hover:bg-blue-700 transition disabled:bg-blue-400 flex items-center justify-center"
-                                >
-                                    {isLoading ? <Loader size={24} className="animate-spin" /> : <Search size={24} />}
-                                </button>
-                            </div>
-                        </form>
-                    </div>
+                    {/* FIXED/CENTERED HEADER AREA (Includes History Buttons and Search Bar) */}
+                    <header className={`z-50 w-full ${!isHomeView ? 'fixed top-0 bg-white dark:bg-gray-900 shadow-xl border-b border-gray-100 dark:border-gray-800' : 'pt-24'}`}>
+                        <div className={`max-w-4xl mx-auto p-4 flex items-center ${isHomeView ? 'justify-center' : 'justify-start'}`}>
+                            
+                            {/* HOME Button (Only visible when NOT on home view) */}
+                            {!isHomeView && (
+                                <div className="flex space-x-2 mr-4 flex-shrink-0">
+                                    <button 
+                                        onClick={() => {
+                                            setView('home');
+                                            setQuery(''); // Clear query when returning home
+                                            localStorage.removeItem(APP_NAME + '_query');
+                                        }}
+                                        className="p-2 rounded-full text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition"
+                                        title="Go to Home Search Page"
+                                    >
+                                        <i className="fas fa-home"></i>
+                                    </button>
+                                </div>
+                            )}
 
+                            {/* Search Form */}
+                            <form onSubmit={handleSubmit} className={`flex-grow ${isHomeView ? 'max-w-2xl' : ''}`}>
+                                <div className="flex items-center bg-white dark:bg-gray-800 border-2 border-primary-gray rounded-full shadow-2xl dark:shadow-gray-700/50 hover:shadow-primary-gray/50">
+                                    <input
+                                        type="text"
+                                        value={query}
+                                        onChange={(e) => setQuery(e.target.value)}
+                                        placeholder={isHomeView ? "Search the knowledge base..." : query || "Search..."}
+                                        className="search-input flex-grow p-3 pl-6 text-lg rounded-l-full focus:outline-none dark:bg-gray-800 text-black dark:text-gray-50"
+                                    />
+                                    
+                                    <button
+                                        type="submit"
+                                        disabled={isLoading}
+                                        style={{ backgroundColor: '#9EA3A3' }}
+                                        className="p-3 text-white rounded-r-full hover:bg-gray-600 transition disabled:bg-gray-400 flex items-center justify-center"
+                                    >
+                                        {isLoading ? <i className="fas fa-circle-notch fa-spin fa-icon"></i> : <i className="fas fa-search fa-icon"></i>}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </header>
 
-                    {/* Main Content Area */}
-                    <main className={`flex-grow p-4 md:p-8 flex justify-center ${!isHomeView ? 'mt-16 md:mt-24' : ''}`}>
+                    <main className={`flex-grow p-4 md:p-8 flex justify-center ${!isHomeView ? 'pt-28 md:pt-24' : ''}`}>
                         <div className="w-full max-w-4xl">
                             {renderMainContent()}
                         </div>
                     </main>
                     
-                    {/* Footer */}
-                    <footer className="bg-gray-900 text-white p-6 md:p-8 mt-auto">
-                        <div className="max-w-4xl mx-auto flex flex-col md:flex-row justify-between items-center md:items-start space-y-4 md:space-y-0">
+                    <footer className="bg-gray-900 text-white dark:bg-gray-900 p-6 md:p-8 mt-auto">
+                        <div className="max-w-4xl mx-auto flex flex-col md:flex-row justify-between items-start space-y-4 md:space-y-0">
                             
-                            <div className="text-center md:text-left">
+                            <div className="text-left">
                                 <h3 className="text-xl font-bold mb-1">
-                                    <span className="text-blue-400">inbondz</span> search
+                                    <span style={{ color: '#9EA3A3' }}>Inbondz</span> Search
                                 </h3>
-                                <p className="text-xs text-gray-400">
-                                    Knowledge powered by the free MediaWiki API.
-                                </p>
+                                <p className="text-xs text-gray-400">Knowledge powered by the free MediaWiki API.</p>
+                                <p className="text-xs text-gray-400 mt-4">&copy; 2024 Inbondz Search. All rights reserved.</p>
                             </div>
 
-                            <nav className="flex flex-wrap justify-center md:justify-end space-x-6 text-sm">
-                                <button onClick={() => setView('home')} className="flex items-center hover:text-blue-400 transition">
-                                    <Home size={16} className="mr-1"/> Home
+                            <nav className="flex flex-col space-y-2 text-sm text-left">
+                                <button onClick={() => setView('home')} className="flex items-center text-gray-300 hover:text-primary-gray transition">
+                                    <i className="fas fa-home w-4 mr-2"></i> Home
                                 </button>
-                                <button onClick={() => setView('policy')} className="flex items-center hover:text-blue-400 transition">
-                                    <FileText size={16} className="mr-1"/> Privacy Policy
+                                <button onClick={() => setView('policy')} className="flex items-center text-gray-300 hover:text-primary-gray transition">
+                                    <i className="fas fa-shield-alt w-4 mr-2"></i> Privacy Policy
                                 </button>
-                                <button onClick={() => setView('terms')} className="flex items-center hover:text-blue-400 transition">
-                                    <FileText size={16} className="mr-1"/> Terms of Service
+                                <button onClick={() => setView('terms')} className="flex items-center text-gray-300 hover:text-primary-gray transition">
+                                    <i className="fas fa-file-contract w-4 mr-2"></i> Terms of Service
                                 </button>
-                                <button onClick={() => setView('contact')} className="flex items-center hover:text-blue-400 transition">
-                                    <Phone size={16} className="mr-1"/> Contact
+                                <button onClick={() => setView('contact')} className="flex items-center text-gray-300 hover:text-primary-gray transition">
+                                    <i className="fas fa-headset w-4 mr-2"></i> Contact
                                 </button>
                             </nav>
-                        </div>
-                        <div className="mt-4 pt-4 border-t border-gray-700 text-center text-xs text-gray-500">
-                            &copy; 2024 Inbondz Search. All rights reserved.
                         </div>
                     </footer>
                 </div>
             );
         };
 
-        // Render the application to the 'root' div
         const container = document.getElementById('root');
         const root = ReactDOM.createRoot(container);
-        root.render(<App />);
-
+        try {
+            root.render(<App />);
+        } catch (e) {
+            console.error("Critical React Render Error:", e);
+            document.getElementById('root').innerHTML = '<div style="padding: 20px; color: red;">Error starting application. Check console for details.</div>';
+        }
     </script>
 </body>
 </html>
+
+
 
 
 
