@@ -3,456 +3,480 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Inbondz Search - Fully Free Knowledge Engine</title>
-    
-    <!-- PWA REQUIREMENTS: Manifest and Theme Color -->
-    <link rel="manifest" href="/manifest.webmanifest">
-    <meta name="theme-color" content="#1f2937"> <!-- Dark gray for app interface -->
-    
-    <!-- FAVICON: Using Embedded SVG Data URI for the text "Inbondz" in #9EA3A3 -->
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 100'%3E%3Crect width='200' height='100' fill='transparent'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='central' text-anchor='middle' font-family='Inter, sans-serif' font-size='50' font-weight='bold' fill='%239EA3A3'%3EInbondz%3C/text%3E%3C/svg%3E">
+    <title>Inbondz Cryptographic Identity and Social Ledger</title>
 
     <!-- Load Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
-            darkMode: 'media', 
+            darkMode: 'media',
             theme: {
                 extend: {
                     colors: {
-                        'primary-gray': '#9EA3A3',
-                        'dark-bg': '#1f2937', 
-                        'dark-card': '#374151',
-                        'light-bg': '#f9fafb', 
+                        'dir-dark': '#1F2937', // Gray-800
+                        'dir-blue': '#10B981', // Emerald-500 for a secure look
                     },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    }
                 }
             }
         }
     </script>
     
-    <!-- Load React, ReactDOM, Babel, and Font Awesome -->
-    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
     
     <style>
-        body { font-family: 'Inter', sans-serif; }
-        .knowledge-background {
-            min-height: 100vh;
-            background-color: var(--tw-light-bg);
-            display: flex;
-            flex-direction: column;
+        body { font-family: 'Inter', sans-serif; background-color: #E5E7EB; }
+        .app-container { min-height: 100vh; background-color: #ffffff; }
+        .logo-text {
+            font-size: 2rem;
+            font-weight: 800;
+            letter-spacing: -0.05em;
+            color: #1F2937;
         }
-        .dark .knowledge-background {
-            background-color: #0d1117; 
+        .logo-text span {
+             color: #10B981;
         }
-        .fa-icon { font-size: 24px; }
-        
-        /* Custom styles to ensure placeholder and text color contrast in dark mode */
-        .search-input::placeholder {
-            color: #4b5563; /* Darker gray for light mode placeholder */
-        }
-        .dark .search-input::placeholder {
-            color: #9ca3af; /* Lighter gray for dark mode placeholder */
+        .card-bg {
+            background: #F9FAFB;
         }
     </style>
 </head>
 <body>
-    <div id="root">
-        <!-- React App will render here -->
+    <div id="root" class="app-container p-4 md:p-10">
+        <!-- Content will be rendered here by JavaScript -->
     </div>
 
-    <!-- PWA MANIFEST and SERVICE WORKER Setup -->
     <script>
-        // SVG for the full text "Inbondz" used for the manifest icon (requires more width)
-        const ICON_SVG = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 100'%3E%3Crect width='200' height='100' fill='transparent'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='central' text-anchor='middle' font-family='Inter, sans-serif' font-size='50' font-weight='bold' fill='%239EA3A3'%3EInbondz%3C/text%3E%3C/svg%3E";
+        // --- Global State Management ---
+        let isAuthenticated = false;
+        let currentUser = {
+            username: null,
+            publicIdentityKey: null,
+            name: null,
+        };
+        let globalDirectory = [];
+        let globalComments = [];
 
-        // 1. WEB MANIFEST CONTENT
-        const manifestContent = {
-            name: "Inbondz Search",
-            short_name: "Inbondz",
-            description: "A fast, ad-free, knowledge search engine.",
-            start_url: "/",
-            display: "standalone",
-            background_color: "#0d1117",
-            theme_color: "#1f2937",
-            // This flag helps ensure the web app is installed instead of a native app
-            prefer_related_applications: false, 
-            icons: [
-                { src: ICON_SVG, sizes: "192x192", type: "image/svg+xml" },
-                { src: ICON_SVG, sizes: "512x512", type: "image/svg+xml" }
-            ]
+        // --- Cryptographic Configuration (Must be consistent) ---
+        const PASSWORD_DERIVATION_PARAMS = {
+            name: "PBKDF2",
+            salt: new TextEncoder().encode("inbondz-salt-v1"), // Fixed salt for deterministic key
+            iterations: 100000,
+            hash: "SHA-256",
+        };
+        const ENCRYPTION_PARAMS = { name: "AES-GCM", iv: new TextEncoder().encode("inbondz-iv-v1") }; // Fixed IV for demo
+        const ALGORITHM = { name: "AES-GCM", length: 256 };
+
+        // --- Cryptography Utilities ---
+
+        const bufferToBase64 = (buffer) => btoa(String.fromCharCode(...new Uint8Array(buffer)));
+        const base64ToBuffer = (base64) => Uint8Array.from(atob(base64), c => c.charCodeAt(0)).buffer;
+
+        const deriveMasterKey = async (password) => {
+            const passwordBuffer = new TextEncoder().encode(password);
+            const baseKey = await window.crypto.subtle.importKey(
+                "raw", passwordBuffer, { name: "PBKDF2" }, false, ["deriveKey"]
+            );
+            return await window.crypto.subtle.deriveKey(
+                PASSWORD_DERIVATION_PARAMS, baseKey, ALGORITHM, true, ["encrypt", "decrypt"]
+            );
         };
 
-        // 2. Register Service Worker for Offline Functionality
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                const workerScript = `
-                    const CACHE_NAME = 'inbondz-cache-v3'; // Incrementing cache version again to V3
-                    const urlsToCache = [
-                        '/',
-                        'index.html', 
-                        'https://cdn.tailwindcss.com',
-                        'https://unpkg.com/react@18/umd/react.development.js',
-                        'https://unpkg.com/react-dom@18/umd/react-dom.development.js',
-                        'https://unpkg.com/@babel/standalone/babel.min.js',
-                        'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css'
-                    ];
+        const generatePublicIdentityKey = async (masterKey) => {
+            const keyExport = await window.crypto.subtle.exportKey("raw", masterKey);
+            const hashBuffer = await window.crypto.subtle.digest("SHA-256", keyExport);
+            return bufferToBase64(hashBuffer).slice(0, 16); // Unique 16-char ID
+        };
 
-                    self.addEventListener('install', (event) => {
-                        self.skipWaiting(); 
-                        event.waitUntil(
-                            caches.open(CACHE_NAME)
-                                .then((cache) => {
-                                    console.log('Opened cache, adding core assets.');
-                                    // Caching core assets is mandatory for A2HS installability
-                                    return cache.addAll(urlsToCache).catch(err => {
-                                        console.error('Failed to cache some assets (e.g., cross-origin failure):', err);
-                                    });
-                                })
-                        );
-                    });
+        const getLocalProfile = () => {
+            const storedProfile = localStorage.getItem('inbondz_profile');
+            return storedProfile ? JSON.parse(storedProfile) : null;
+        };
+        
+        // --- Data Persistence (Simulated P2P Ledger) ---
 
-                    self.addEventListener('fetch', (event) => {
-                        if (event.request.method !== 'GET') return;
-                        if (event.request.url.includes('wikipedia.org')) return;
-                        
-                        event.respondWith(
-                            caches.match(event.request).then((response) => {
-                                return response || fetch(event.request);
-                            })
-                        );
-                    });
+        const loadLedgers = () => {
+            globalDirectory = JSON.parse(localStorage.getItem('inbondz_directory') || '[]');
+            globalComments = JSON.parse(localStorage.getItem('inbondz_comments') || '[]');
+        };
+        
+        const saveDirectory = () => {
+            localStorage.setItem('inbondz_directory', JSON.stringify(globalDirectory));
+        };
 
-                    self.addEventListener('activate', (event) => {
-                        console.log('Service Worker activated. Removing old caches.');
-                        const cacheWhitelist = [CACHE_NAME];
-                        event.waitUntil(
-                            caches.keys().then((cacheNames) => {
-                                return Promise.all(
-                                    cacheNames.map((cacheName) => {
-                                        // Delete all caches that don't match the new CACHE_NAME (v3)
-                                        if (cacheWhitelist.indexOf(cacheName) === -1) {
-                                            return caches.delete(cacheName);
-                                        }
-                                    })
-                                );
-                            })
-                        );
-                    });
-                `;
+        const saveComments = () => {
+            localStorage.setItem('inbondz_comments', JSON.stringify(globalComments));
+        };
 
-                const blob = new Blob([workerScript], { type: 'application/javascript' });
-                const workerUrl = URL.createObjectURL(blob);
+        // --- Core Application Functions ---
 
-                // Use the root scope for maximum coverage
-                navigator.serviceWorker.register(workerUrl, { scope: '/' })
-                    .then(reg => {
-                        console.log('Service Worker registered successfully!', reg);
-                    })
-                    .catch(err => {
-                        console.error('Service Worker registration failed:', err);
-                    });
-            });
+        async function registerIdentity(name, username, password) {
+            const cleanUsername = username.trim().toLowerCase();
+            
+            // 1. Check uniqueness
+            if (globalDirectory.some(u => u.username === cleanUsername)) {
+                throw new Error(`Username '${cleanUsername}' is already taken.`);
+            }
+
+            // 2. Derive Key and Identity
+            const masterKey = await deriveMasterKey(password);
+            const publicIdentityKey = await generatePublicIdentityKey(masterKey);
+
+            // 3. Encrypt data and store locally
+            const plaintext = JSON.stringify({ name: name, username: cleanUsername });
+            const plaintextBuffer = new TextEncoder().encode(plaintext);
+            const ciphertextBuffer = await window.crypto.subtle.encrypt(ENCRYPTION_PARAMS, masterKey, plaintextBuffer);
+            const encryptedData = bufferToBase64(ciphertextBuffer);
+            
+            localStorage.setItem('inbondz_profile', JSON.stringify({ encryptedData, publicIdentityKey }));
+
+            // 4. Update Global Directory Ledger
+            const newDirectoryEntry = { username: cleanUsername, publicIdentityKey, joined: new Date().toISOString() };
+            globalDirectory.push(newDirectoryEntry);
+            saveDirectory();
+
+            return { username: cleanUsername, publicIdentityKey, name };
         }
 
-        // 3. Fake the manifest file reference
-        document.querySelector('link[rel="manifest"]').href = 'data:application/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(manifestContent));
-    </script>
-    
-    <!-- React Application Logic -->
-    <script type="text/babel">
-        const { useState, useCallback, useEffect } = React;
-        const WIKIPEDIA_API_URL = 'https://en.wikipedia.org/w/api.php';
-        const APP_NAME = 'Inbondz Search'; 
+        async function authenticateIdentity(password) {
+            const localProfile = getLocalProfile();
+            if (!localProfile) throw new Error("No local profile found. Please register.");
 
-        const fetchWikipedia = async (query) => {
-            const params = { action: 'query', list: 'search', srsearch: query, format: 'json', origin: '*', srlimit: 15, srsort: 'relevance' };
-            const url = WIKIPEDIA_API_URL + '?' + new URLSearchParams(params).toString();
-            
+            const { encryptedData, publicIdentityKey } = localProfile;
+            const ciphertextBuffer = base64ToBuffer(encryptedData);
+
             try {
-                // Use exponential backoff for API calls
-                let response;
-                const maxRetries = 3;
-                let delay = 1000;
-
-                for (let i = 0; i < maxRetries; i++) {
-                    response = await fetch(url);
-                    if (response.ok) {
-                        break;
-                    }
-                    if (i < maxRetries - 1) {
-                        await new Promise(resolve => setTimeout(resolve, delay));
-                        delay *= 2; // Exponential backoff
-                    } else {
-                        throw new Error(`API returned status: ${response.status}`);
-                    }
-                }
+                const masterKey = await deriveMasterKey(password);
                 
-                const data = await response.json();
-                return data.query.search || [];
+                // Attempt decryption (Cryptographic Verification)
+                const decryptedBuffer = await window.crypto.subtle.decrypt(
+                    ENCRYPTION_PARAMS, masterKey, ciphertextBuffer
+                );
+
+                const plaintext = new TextDecoder().decode(decryptedBuffer);
+                const verifiedUserData = JSON.parse(plaintext);
+                
+                // Set the current authenticated user's details
+                currentUser = { 
+                    ...verifiedUserData,
+                    publicIdentityKey: publicIdentityKey 
+                };
+                
+                isAuthenticated = true;
+                return verifiedUserData;
+
             } catch (e) {
-                console.error("Wikipedia API Fetch Error:", e);
-                if (!navigator.onLine) {
-                    throw new Error("You appear to be offline. Search requires an internet connection.");
-                } else {
-                    throw new Error("Failed to fetch results from the knowledge base.");
+                console.error("Decryption failed:", e);
+                throw new Error("Invalid password (Key mismatch).");
+            }
+        }
+
+        function createComment(text) {
+            if (!isAuthenticated || !currentUser.username) {
+                throw new Error("Must be logged in to comment.");
+            }
+            
+            const newComment = {
+                id: crypto.randomUUID(),
+                username: currentUser.username,
+                publicIdentityKey: currentUser.publicIdentityKey,
+                text: text.trim(),
+                timestamp: new Date().toISOString(),
+            };
+            
+            globalComments.unshift(newComment); // Add to the top
+            saveComments();
+            renderCommentsSection(); // Re-render comments immediately
+        }
+
+        function deleteComment(commentId) {
+            const index = globalComments.findIndex(c => c.id === commentId && c.publicIdentityKey === currentUser.publicIdentityKey);
+
+            if (index > -1) {
+                globalComments.splice(index, 1);
+                saveComments();
+                renderCommentsSection(); // Re-render comments immediately
+            } else {
+                console.error("Comment not found or unauthorized deletion attempt.");
+            }
+        }
+
+        function logout() {
+            isAuthenticated = false;
+            currentUser = { username: null, publicIdentityKey: null, name: null };
+            renderApp();
+        }
+
+        // --- HTML Rendering Functions ---
+
+        const getHeader = () => `
+            <header class="mb-10 text-center">
+                <h1 class="logo-text flex justify-center items-center">
+                    <i class="fas fa-fingerprint text-dir-blue mr-3 text-4xl"></i>
+                    accounts.<span>inbondz.com</span>
+                </h1>
+                <p class="text-gray-500 mt-1 text-lg">Self-Authenticating Decentralized Identity & Social Ledger</p>
+            </header>
+        `;
+
+        const getErrorMessage = (message) => `
+            <p class="text-red-600 bg-red-100 p-3 rounded-lg text-sm mb-4">${message}</p>
+        `;
+
+        const renderRegistrationView = (error = null) => {
+            const html = `
+                ${getHeader()}
+                <div class="w-full max-w-lg mx-auto p-8 bg-white shadow-2xl rounded-2xl">
+                    <h2 class="text-3xl font-bold text-dir-dark border-b pb-4 mb-6 flex items-center">
+                        <i class="fas fa-key mr-3 text-dir-blue"></i> Register Unique Identity
+                    </h2>
+                    ${error ? getErrorMessage(error) : ''}
+                    <form id="registration-form" class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+                            <input type="text" id="reg-name" class="w-full p-3 border border-gray-300 rounded-lg focus:border-dir-blue focus:ring-1 focus:ring-dir-blue" required />
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Unique Username (P2P ID)</label>
+                            <input type="text" id="reg-username" class="w-full p-3 border border-gray-300 rounded-lg focus:border-dir-blue focus:ring-1 focus:ring-dir-blue lowercase" required />
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Password (Cryptographic Key)</label>
+                            <input type="password" id="reg-password" class="w-full p-3 border border-gray-300 rounded-lg focus:border-dir-blue focus:ring-1 focus:ring-dir-blue" required />
+                        </div>
+                        <button type="submit" id="reg-button" class="w-full bg-dir-blue text-white p-3 rounded-lg font-semibold hover:bg-dir-blue/90 transition disabled:bg-gray-400 flex items-center justify-center">
+                            <i class="fas fa-user-plus mr-2"></i> Register & Encrypt
+                        </button>
+                    </form>
+                </div>
+            `;
+            document.getElementById('root').innerHTML = `
+                <div class="flex flex-col items-center justify-center min-h-screen">
+                    ${html}
+                </div>
+            `;
+            
+            // Attach event listener
+            document.getElementById('registration-form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const name = document.getElementById('reg-name').value;
+                const username = document.getElementById('reg-username').value;
+                const password = document.getElementById('reg-password').value;
+                const button = document.getElementById('reg-button');
+                
+                button.disabled = true;
+                button.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Generating Keys...';
+
+                try {
+                    await registerIdentity(name, username, password);
+                    renderApp(); // Rerender to the authenticated state or login view
+                } catch (err) {
+                    renderRegistrationView(err.message);
                 }
+            });
+        };
+
+        const renderLoginView = (error = null) => {
+            const html = `
+                ${getHeader()}
+                <div class="w-full max-w-lg mx-auto p-8 bg-white shadow-2xl rounded-2xl">
+                    <h2 class="text-3xl font-bold text-dir-dark border-b pb-4 mb-6 flex items-center">
+                        <i class="fas fa-shield-halved mr-3 text-dir-blue"></i> Cryptographic Login
+                    </h2>
+                    ${error ? getErrorMessage(error) : ''}
+                    <form id="login-form" class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                            <input type="password" id="login-password" class="w-full p-3 border border-gray-300 rounded-lg focus:border-dir-blue focus:ring-1 focus:ring-dir-blue" required />
+                        </div>
+                        <button type="submit" id="login-button" class="w-full bg-dir-blue text-white p-3 rounded-lg font-semibold hover:bg-dir-blue/90 transition disabled:bg-gray-400 flex items-center justify-center">
+                            <i class="fas fa-sign-in-alt mr-2"></i> Login (Verify Key)
+                        </button>
+                    </form>
+                    <div class="text-center mt-6 pt-4 border-t">
+                        <p class="text-sm text-gray-500">Need to start fresh? Your current profile is stored locally. Clear browser storage to re-register.</p>
+                    </div>
+                </div>
+            `;
+            document.getElementById('root').innerHTML = `
+                <div class="flex flex-col items-center justify-center min-h-screen">
+                    ${html}
+                </div>
+            `;
+            
+            // Attach event listener
+            document.getElementById('login-form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const password = document.getElementById('login-password').value;
+                const button = document.getElementById('login-button');
+                
+                button.disabled = true;
+                button.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Verifying Keys...';
+
+                try {
+                    await authenticateIdentity(password);
+                    renderApp();
+                } catch (err) {
+                    renderLoginView(err.message);
+                }
+            });
+        };
+
+        const renderDirectorySection = () => {
+            const directoryHtml = globalDirectory.map(user => `
+                <div class="p-4 card-bg rounded-lg shadow-md border-l-4 border-dir-blue/50">
+                    <div class="flex justify-between items-center">
+                        <h3 class="text-xl font-bold text-dir-dark flex items-center">
+                            <i class="fas fa-satellite-dish mr-2 text-dir-blue"></i>
+                            ${user.username}
+                            ${user.publicIdentityKey === currentUser.publicIdentityKey ? '<span class="ml-3 text-xs bg-dir-blue text-white px-2 py-0.5 rounded-full">YOU</span>' : ''}
+                        </h3>
+                    </div>
+                    <p class="text-xs text-gray-400 mt-1 truncate">
+                        Public Key: <span class="font-mono">${user.publicIdentityKey}</span>
+                    </p>
+                    <p class="text-xs text-gray-400 mt-1">
+                        Joined: ${new Date(user.joined).toLocaleDateString()}
+                    </p>
+                </div>
+            `).join('');
+
+            return `
+                <div class="p-8 bg-white shadow-2xl rounded-2xl w-full">
+                    <h2 class="text-3xl font-bold text-dir-dark border-b pb-4 mb-6 flex items-center">
+                        <i class="fas fa-network-wired mr-3 text-dir-blue"></i> Global P2P Directory
+                    </h2>
+                    <div class="space-y-4 max-h-96 overflow-y-auto pr-2">
+                        ${directoryHtml || '<p class="text-center py-10 text-gray-500 bg-gray-100 rounded-lg">No identities registered yet.</p>'}
+                    </div>
+                </div>
+            `;
+        };
+
+        const renderCommentCard = (comment) => {
+            const isOwner = comment.publicIdentityKey === currentUser.publicIdentityKey;
+            
+            return `
+                <div class="p-4 border-b border-gray-200 hover:bg-gray-50 transition duration-150">
+                    <div class="flex justify-between items-start">
+                        <div class="flex items-center mb-1">
+                            <span class="text-lg font-bold text-dir-dark mr-2">${comment.username}</span>
+                            ${isOwner ? '<span class="text-xs bg-dir-blue text-white px-2 py-0.5 rounded-full">YOU</span>' : ''}
+                            <span class="text-xs text-gray-400 ml-3">
+                                ${new Date(comment.timestamp).toLocaleDateString()}
+                            </span>
+                        </div>
+                        ${isOwner ? `
+                            <button onclick="deleteComment('${comment.id}')" 
+                                class="text-red-500 hover:text-red-700 transition p-1 rounded-full hover:bg-red-100">
+                                <i class="fas fa-trash-alt"></i>
+                            </button>
+                        ` : ''}
+                    </div>
+                    <p class="text-gray-700">${comment.text}</p>
+                </div>
+            `;
+        };
+
+        const renderCommentsSection = () => {
+            const commentContainer = document.getElementById('comments-list');
+            if (!commentContainer) return;
+
+            const commentsHtml = globalComments.map(renderCommentCard).join('');
+            commentContainer.innerHTML = commentsHtml;
+        };
+        
+        const renderAuthenticatedView = () => {
+            document.getElementById('root').innerHTML = `
+                <div class="flex flex-col items-center justify-center min-h-screen pt-10 pb-10">
+                    ${getHeader()}
+                    <main class="w-full max-w-6xl space-y-8">
+                        
+                        <div class="p-4 bg-green-100 text-green-800 rounded-xl text-center shadow-md border-t-4 border-dir-blue flex justify-between items-center">
+                            <div>
+                                <h3 class="text-xl font-bold">Authenticated as @${currentUser.username} (${currentUser.name})</h3>
+                                <p class="text-sm text-green-700">Verification successful via cryptographic key.</p>
+                            </div>
+                            <button onclick="logout()" class="bg-red-500 text-white p-2 px-4 rounded-lg font-semibold hover:bg-red-600 transition">
+                                <i class="fas fa-sign-out-alt mr-2"></i>Logout
+                            </button>
+                        </div>
+
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                            <!-- Global Directory Panel -->
+                            <div class="order-2 lg:order-1">
+                                ${renderDirectorySection()}
+                            </div>
+                            
+                            <!-- Comments/Social Ledger Panel -->
+                            <div class="p-8 bg-white shadow-2xl rounded-2xl w-full order-1 lg:order-2">
+                                <h2 class="text-3xl font-bold text-dir-dark border-b pb-4 mb-6 flex items-center">
+                                    <i class="fas fa-comment-dots mr-3 text-dir-blue"></i> Social Ledger
+                                </h2>
+
+                                <!-- Comment Form -->
+                                <form id="comment-form" class="mb-6 pb-6 border-b border-gray-200">
+                                    <textarea id="comment-text" class="w-full p-3 border border-gray-300 rounded-lg focus:border-dir-blue focus:ring-1 focus:ring-dir-blue" rows="3" placeholder="Post a comment to the public ledger..." required></textarea>
+                                    <button type="submit" class="w-full bg-dir-dark text-white p-3 rounded-lg font-semibold hover:bg-dir-dark/90 transition disabled:bg-gray-400 mt-2">
+                                        <i class="fas fa-paper-plane mr-2"></i> Publish Comment
+                                    </button>
+                                </form>
+
+                                <!-- Comments List Container -->
+                                <div id="comments-list" class="space-y-2 max-h-[500px] overflow-y-auto">
+                                    <!-- Comments will be injected here by renderCommentsSection() -->
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Footer Status -->
+                        <footer class="text-center pt-10 text-gray-500">
+                            <p class="text-xs">
+                                All data (profiles and comments) are stored in the client's browser (simulating a local node). Authentication is Zero-Knowledge.<br/>
+                                The public ledger is updated in real-time within your browser's local storage.
+                            </p>
+                        </footer>
+
+                    </main>
+                </div>
+            `;
+            
+            // Attach event listeners for comments
+            document.getElementById('comment-form').addEventListener('submit', (e) => {
+                e.preventDefault();
+                const text = document.getElementById('comment-text').value;
+                if (text.trim()) {
+                    createComment(text);
+                    document.getElementById('comment-text').value = ''; // Clear input
+                }
+            });
+
+            // Initial render of comments
+            renderCommentsSection();
+        };
+
+        const renderApp = () => {
+            loadLedgers(); // Always reload data from storage first
+            const localProfile = getLocalProfile();
+
+            if (isAuthenticated) {
+                renderAuthenticatedView();
+            } else if (localProfile) {
+                renderLoginView();
+            } else {
+                renderRegistrationView();
             }
         };
 
-        const SearchResultCard = ({ result }) => {
-            const pageTitle = result.title;
-            // Clean snippet: remove <span> tags used by MediaWiki API
-            let snippet = result.snippet.replace(/<span[^>]*>/g, '').replace(/<\/span>/g, '');
-            // Decode HTML entities (e.g., &quot;)
-            try { snippet = new DOMParser().parseFromString(snippet, 'text/html').documentElement.textContent; } catch (e) {}
-            const pageId = result.pageid;
-            const pageUrl = `https://en.wikipedia.org/?curid=${pageId}`;
-
-            return (
-                <div className="p-4 bg-white dark:bg-dark-card rounded-xl shadow-md hover:shadow-lg transition duration-300 border-l-4 border-primary-gray flex flex-col">
-                    <a href={pageUrl} target="_blank" rel="noopener noreferrer" className="flex items-center justify-between">
-                        <h2 className="text-xl font-medium text-gray-800 dark:text-gray-200 hover:text-primary-gray leading-tight">
-                            {pageTitle}
-                        </h2>
-                        <i className="fas fa-external-link-alt text-gray-400 hover:text-primary-gray transition flex-shrink-0 ml-2"></i>
-                    </a>
-                    <p className="text-gray-700 dark:text-gray-400 mt-2 text-sm line-clamp-3 mb-2">{snippet}</p>
-                    <div className="mt-auto pt-2 text-xs text-gray-500 truncate">
-                        <span className="font-mono">{pageUrl}</span>
-                    </div>
-                </div>
-            );
-        };
-
-        const App = () => {
-            const [query, setQuery] = useState('');
-            const [results, setResults] = useState([]);
-            const [isLoading, setIsLoading] = useState(false);
-            const [error, setError] = useState(null);
-            const [view, setView] = useState('home'); 
-
-            // Load last search query from local storage on mount
-            useEffect(() => {
-                const savedQuery = localStorage.getItem(APP_NAME + '_query');
-                if (savedQuery) {
-                    setQuery(savedQuery);
-                    handleSearch(savedQuery, true); 
-                    setView('results');
-                }
-            }, []);
-
-            const handleSearch = useCallback(async (searchQuery, isInitialLoad = false) => {
-                const trimmedQuery = searchQuery.trim();
-                if (!trimmedQuery) { setResults([]); setError(null); setView('home'); return; }
-
-                setIsLoading(true);
-                setError(null);
-                localStorage.setItem(APP_NAME + '_query', trimmedQuery);
-                if (!isInitialLoad) setView('results');
-
-                try {
-                    const data = await fetchWikipedia(trimmedQuery);
-                    setResults(data);
-                } catch (err) {
-                    console.error("Search failed:", err);
-                    setError(err.message || "An unknown error occurred during search.");
-                    setResults([]);
-                } finally {
-                    setIsLoading(false);
-                }
-            }, []);
-
-            const handleSubmit = (e) => { e.preventDefault(); handleSearch(query); };
-
-            const renderMainContent = () => {
-                if (view === 'home') {
-                    return (
-                        <div className="flex flex-col items-center justify-center min-h-[50vh]">
-                            <h1 className="text-6xl font-black text-black dark:text-gray-300 mb-6 tracking-tight">
-                                <span style={{ color: '#9EA3A3' }}>Inbondz</span> Search
-                            </h1>
-                            <p className="text-xl text-gray-600 dark:text-gray-400 mb-10 max-w-lg text-center">
-                                Find definitions, facts, and encyclopedia knowledge instantly.
-                            </p>
-                        </div>
-                    );
-                }
-
-                if (view === 'results') {
-                    if (isLoading) {
-                        return (
-                            <div className="py-20 flex flex-col items-center justify-center text-primary-gray">
-                                <i className="fas fa-spinner fa-pulse fa-4x mb-4"></i>
-                                <p className="text-lg text-gray-600 dark:text-gray-300">Searching the knowledge base...</p>
-                            </div>
-                        );
-                    }
-
-                    if (error) {
-                        return (
-                            <div className="p-6 bg-red-100 dark:bg-red-900 border-l-4 border-red-500 text-red-700 dark:text-red-300 rounded-lg flex items-start">
-                                <i className="fas fa-exclamation-triangle w-6 h-6 mr-4 flex-shrink-0"></i>
-                                <div>
-                                    <h3 className="font-semibold text-lg mb-1">Search Error</h3>
-                                    <p>{error}</p>
-                                    <p className="mt-2 text-sm opacity-80">Check your connection or try a different search term.</p>
-                                </div>
-                            </div>
-                        );
-                    }
-
-                    if (results.length === 0) {
-                        return (
-                            <div className="p-10 text-center bg-gray-100 dark:bg-gray-800 rounded-xl text-gray-600 dark:text-gray-400">
-                                <i className="fas fa-info-circle fa-2x mx-auto mb-3 text-primary-gray"></i>
-                                <p className="text-lg font-medium">No results found for **"{query}"**.</p>
-                                <p className="text-sm mt-1">Try a more general search term.</p>
-                            </div>
-                        );
-                    }
-
-                    return (
-                        <div className="space-y-6">
-                            <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">
-                                Showing {results.length} results for **"{query}"**
-                            </p>
-                            <div className="grid md:grid-cols-2 gap-4">
-                                {results.map((result) => (
-                                    <SearchResultCard key={result.pageid} result={result} />
-                                ))}
-                            </div>
-                        </div>
-                    );
-                }
-                
-                const staticPageContent = {
-                    policy: { title: "Privacy Policy", content: (<><p className='font-semibold'>1. Data Collection and Usage</p><p>We strictly adhere to a zero-data-collection policy for search queries. We do not track, record, or store any personal data or individual search terms entered on this website.</p><p className='font-semibold mt-4'>2. Third-Party API</p><p>This service operates by sending your query directly to the free, public Wikipedia/MediaWiki API. We are an intermediary and have no control over how Wikipedia handles anonymous API requests.</p><p className='font-semibold mt-4'>3. Local Storage</p><p>Your most recent search term is temporarily stored in your browser's local storage solely for user convenience (to persist the search bar content across sessions). This data never leaves your device and can be cleared by deleting your browser cache.</p></>) },
-                    terms: { title: "Terms of Service", content: (<><p className='font-semibold'>1. Content Disclaimer</p><p>This service provides search results fetched directly from the Wikipedia API. All search results are governed by the <a href="https://creativecommons.org/licenses/by-sa/3.0/" target="_blank" className='text-primary-gray hover:text-gray-600 underline'>Creative Commons Attribution-ShareAlike 3.0 Unported License (CC BY-SA)</a>. We are not the authors of the content and assume no liability for the accuracy or completeness of the results.</p><p className='font-semibold mt-4'>2. Service Provision</p><p>The Inbondz Search service is provided on an "as is" and "as available" basis, without any warranties. We reserve the right to modify or discontinue the service without notice.</p><p className='font-semibold mt-4'>3. Prohibited Use</p><p>Users must not employ this service for automated scraping, illegal activities, or in any way that could damage, disable, or overburden the service or the upstream Wikipedia API.</p></>) },
-                    contact: { title: "Contact Information", content: (<><p className="mb-3">For all official correspondence, technical support, and grievance handling, please use the dedicated email address below:</p><a href="mailto:grievance@inbondz.com" className="text-primary-gray hover:text-gray-600 font-semibold flex items-center"><i className="fas fa-envelope mr-2"></i> grievance@inbondz.com</a></>) },
-                };
-
-                const page = staticPageContent[view];
-                if (page) {
-                    return (
-                        <div className="bg-white dark:bg-gray-800 p-8 md:p-12 rounded-xl shadow-lg border-t-4 border-primary-gray">
-                            <div className="flex items-center mb-6">
-                                {/* Button inside static content to go to home */}
-                                <button onClick={() => setView('home')} className="p-2 mr-4 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-600 transition">
-                                    <i className="fas fa-arrow-left"></i>
-                                </button>
-                                <h2 className="text-3xl font-bold text-gray-800 dark:text-gray-50">{page.title}</h2>
-                            </div>
-                            <div className="text-gray-700 dark:text-gray-300 leading-relaxed space-y-4">
-                                {page.content}
-                            </div>
-                        </div>
-                    );
-                }
-
-                return null;
-            };
-            
-            const isHomeView = view === 'home';
-
-            return (
-                <div className="knowledge-background">
-                    
-                    {/* FIXED/CENTERED HEADER AREA (Includes Home Button and Search Bar) */}
-                    <header className={`z-50 w-full ${!isHomeView ? 'fixed top-0 bg-white dark:bg-gray-900 shadow-xl border-b border-gray-100 dark:border-gray-800' : 'pt-24'}`}>
-                        <div className={`max-w-4xl mx-auto p-4 flex items-center ${isHomeView ? 'justify-center' : 'justify-start'}`}>
-                            
-                            {/* HOME Button (Only visible when NOT on home view) */}
-                            {!isHomeView && (
-                                <div className="flex space-x-2 mr-4 flex-shrink-0">
-                                    <button 
-                                        onClick={() => {
-                                            setView('home');
-                                            setQuery(''); // Clear query when returning home
-                                            localStorage.removeItem(APP_NAME + '_query');
-                                        }}
-                                        className="p-2 rounded-full text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition"
-                                        title="Go to Home Search Page"
-                                    >
-                                        <i className="fas fa-home"></i>
-                                    </button>
-                                </div>
-                            )}
-
-                            {/* Search Form */}
-                            <form onSubmit={handleSubmit} className={`flex-grow ${isHomeView ? 'max-w-2xl' : ''}`}>
-                                <div className="flex items-center bg-white dark:bg-gray-800 border-2 border-primary-gray rounded-full shadow-2xl dark:shadow-gray-700/50 hover:shadow-primary-gray/50">
-                                    <input
-                                        type="text"
-                                        value={query}
-                                        onChange={(e) => setQuery(e.target.value)}
-                                        placeholder={isHomeView ? "Search the knowledge base..." : query || "Search..."}
-                                        className="search-input flex-grow p-3 pl-6 text-lg rounded-l-full focus:outline-none dark:bg-gray-800 text-black dark:text-gray-50"
-                                    />
-                                    
-                                    <button
-                                        type="submit"
-                                        disabled={isLoading}
-                                        style={{ backgroundColor: '#9EA3A3' }}
-                                        className="p-3 text-white rounded-r-full hover:bg-gray-600 transition disabled:bg-gray-400 flex items-center justify-center"
-                                    >
-                                        {isLoading ? <i className="fas fa-circle-notch fa-spin fa-icon"></i> : <i className="fas fa-search fa-icon"></i>}
-                                    </button>
-                                </div>
-                            </form>
-                        </div>
-                    </header>
-
-                    <main className={`flex-grow p-4 md:p-8 flex justify-center ${!isHomeView ? 'pt-28 md:pt-24' : ''}`}>
-                        <div className="w-full max-w-4xl">
-                            {renderMainContent()}
-                        </div>
-                    </main>
-                    
-                    <footer className="bg-gray-900 text-white dark:bg-gray-900 p-6 md:p-8 mt-auto">
-                        <div className="max-w-4xl mx-auto flex flex-col md:flex-row justify-between items-start space-y-4 md:space-y-0">
-                            
-                            <div className="text-left">
-                                <h3 className="text-xl font-bold mb-1">
-                                    <span style={{ color: '#9EA3A3' }}>Inbondz</span> Search
-                                </h3>
-                                <p className="text-xs text-gray-400">Knowledge powered by the free MediaWiki API.</p>
-                                <p className="text-xs text-gray-400 mt-4">&copy; 2024 Inbondz Search. All rights reserved.</p>
-                            </div>
-
-                            <nav className="flex flex-col space-y-2 text-sm text-left">
-                                <button onClick={() => setView('home')} className="flex items-center text-gray-300 hover:text-primary-gray transition">
-                                    <i className="fas fa-home w-4 mr-2"></i> Home
-                                </button>
-                                <button onClick={() => setView('policy')} className="flex items-center text-gray-300 hover:text-primary-gray transition">
-                                    <i className="fas fa-shield-alt w-4 mr-2"></i> Privacy Policy
-                                </button>
-                                <button onClick={() => setView('terms')} className="flex items-center text-gray-300 hover:text-primary-gray transition">
-                                    <i className="fas fa-file-contract w-4 mr-2"></i> Terms of Service
-                                </button>
-                                <button onClick={() => setView('contact')} className="flex items-center text-gray-300 hover:text-primary-gray transition">
-                                    <i className="fas fa-headset w-4 mr-2"></i> Contact
-                                </button>
-                            </nav>
-                        </div>
-                    </footer>
-                </div>
-            );
-        };
-
-        const container = document.getElementById('root');
-        const root = ReactDOM.createRoot(container);
-        try {
-            root.render(<App />);
-        } catch (e) {
-            console.error("Critical React Render Error:", e);
-            document.getElementById('root').innerHTML = '<div style="padding: 20px; color: red;">Error starting application. Check console for details.</div>';
-        }
+        // Initialize application on load
+        window.onload = renderApp;
     </script>
 </body>
 </html>
+
+
 
 
 
