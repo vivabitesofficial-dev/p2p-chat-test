@@ -1,3 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔒 Password Strength Estimator</title>
+    <style>
+        /* Basic Styling */
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background-color: #f4f4f9;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            width: 90%;
+            max-width: 450px;
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 25px;
+            font-size: 1.5em;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+            color: #555;
+        }
+        input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 20px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            box-sizing: border-box;
+            font-size: 1.1em;
+        }
+
+        /* Strength Meter Styling */
+        #strength-meter-container {
+            height: 10px;
+            background: #eee;
+            border-radius: 5px;
+            margin-bottom: 15px;
+            overflow: hidden;
+        }
+        #strength-meter {
+            height: 100%;
+            width: 0%;
+            transition: width 0.3s ease-in-out, background-color 0.3s ease-in-out;
+            border-radius: 5px;
+        }
+
+        /* Feedback Styling */
+        #feedback {
+            padding: 10px;
+            border-radius: 8px;
+            text-align: center;
+            font-weight: bold;
+            min-height: 40px; /* Ensure space for feedback */
+        }
+        .strength-0 { background-color: #f8d7da; color: #721c24; } /* Default/Empty */
+        .strength-1 { background-color: #f1b0b7; color: #a00; width: 25% !important; } /* Very Weak */
+        .strength-2 { background-color: #ffe599; color: #cc8400; width: 50% !important; } /* Weak */
+        .strength-3 { background-color: #d1ecf1; color: #0c5460; width: 75% !important; } /* Good */
+        .strength-4 { background-color: #d4edda; color: #155724; width: 100% !important; } /* Excellent */
+
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Password Strength Calculator</h1>
+
+    <label for="password">Enter your Password:</label>
+    <input type="text" id="password" placeholder="Type here..." oninput="updateStrength()">
+
+    <div id="strength-meter-container">
+        <div id="strength-meter" class="strength-0"></div>
+    </div>
+
+    <div id="feedback" class="strength-0">Type a password to check its strength.</div>
+    
+</div>
+
+<script>
+    // JavaScript Logic for Entropy Calculation and Strength Feedback
+
+    const passwordInput = document.getElementById('password');
+    const strengthMeter = document.getElementById('strength-meter');
+    const feedbackDiv = document.getElementById('feedback');
+
+    function updateStrength() {
+        const password = passwordInput.value;
+        const result = checkPasswordStrength(password);
+
+        // Update Meter
+        strengthMeter.className = `strength-${result.score}`;
+
+        // Update Feedback Text and Color
+        feedbackDiv.className = `strength-${result.score}`;
+        feedbackDiv.innerHTML = result.feedback;
+    }
+
+    function checkPasswordStrength(password) {
+        if (password.length === 0) {
+            return { 
+                score: 0, 
+                feedback: "Type a password to check its strength." 
+            };
+        }
+
+        let keyspace = 0;
+        let complexityFeedback = [];
+        
+        // 1. Determine Keyspace (R)
+        if (/[a-z]/.test(password)) { keyspace += 26; complexityFeedback.push('lowercase'); }
+        if (/[A-Z]/.test(password)) { keyspace += 26; complexityFeedback.push('UPPERCASE'); }
+        if (/\d/.test(password)) { keyspace += 10; complexityFeedback.push('numbers'); }
+        if (/[^a-zA-Z0-9\s]/.test(password)) { keyspace += 32; complexityFeedback.push('symbols'); }
+
+        const length = password.length;
+        
+        // 2. Calculate Entropy (H = L * log2(R))
+        // Math.log2() is used for the log base 2 calculation
+        const entropyBits = (length > 0 && keyspace > 0) ? length * (Math.log2(keyspace)) : 0;
+
+        let strength = "Very Weak";
+        let score = 1; // Default score if length > 0
+
+        // 3. Map Entropy to Score and Strength Text
+        if (entropyBits >= 128) {
+            strength = "Excellent";
+            score = 4;
+        } else if (entropyBits >= 90) {
+            strength = "Strong";
+            score = 3;
+        } else if (entropyBits >= 60) {
+            strength = "Good";
+            score = 2;
+        } else if (entropyBits < 60 && length >= 8) {
+             strength = "Weak";
+             score = 1;
+        }
+
+        // 4. Construct Feedback
+        let feedbackText = `<strong>Strength: ${strength}</strong> (${entropyBits.toFixed(2)} bits)`;
+        
+        if (score < 4) {
+            feedbackText += '<br>Advice: Use a longer passphrase and mix different character types.';
+        } else {
+            feedbackText += '<br>This password is highly secure against brute-force attacks.';
+        }
+
+
+        return { 
+            score: score, 
+            feedback: feedbackText
+        };
+    }
+    
+    // Initial call to set the default state
+    updateStrength(); 
+
+</script>
+
+</body>
+</html>
 
 
 
